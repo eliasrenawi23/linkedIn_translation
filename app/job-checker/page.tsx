@@ -1,0 +1,624 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Navbar from "../components/Navbar";
+import { DEFAULT_RESUME } from "./constants";
+
+interface AnalysisResult {
+  score: number;
+  recommendation: 'Apply' | 'Apply with Reservations' | 'Do Not Apply';
+  matchAnalysis: {
+    matchingSkills: string[];
+    missingSkills: string[];
+    experienceFit: string;
+    cultureFit: string;
+  };
+  pros: string[];
+  cons: string[];
+  details: string;
+  resumeTips: string[];
+}
+
+export default function JobChecker() {
+  const [resumeMode, setResumeMode] = useState<'default' | 'paste' | 'upload'>('default');
+  const [resumeText, setResumeText] = useState(DEFAULT_RESUME);
+  const [pastedResume, setPastedResume] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [activeTab, setActiveTab] = useState<'verdict' | 'proscons' | 'skills' | 'tips'>('verdict');
+  const [provider, setProvider] = useState("gemini");
+  const [availableModels, setAvailableModels] = useState<{id: string, name: string, available: boolean}[]>([]);
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch(`/api/models`);
+        const data = await response.json();
+        setAvailableModels(data);
+      } catch (err) {
+        console.error("Failed to fetch models:", err);
+      }
+    };
+    fetchModels();
+  }, []);
+
+  const handleResumeModeChange = (mode: 'default' | 'paste' | 'upload') => {
+    setResumeMode(mode);
+    setError("");
+    if (mode === 'default') {
+      setResumeText(DEFAULT_RESUME);
+    } else if (mode === 'paste') {
+      setResumeText(pastedResume);
+    } else {
+      setResumeText("");
+      setUploadedFileName("");
+    }
+  };
+
+  const handlePastedResumeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setPastedResume(val);
+    if (resumeMode === 'paste') {
+      setResumeText(val);
+    }
+  };
+
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadedFileName(file.name);
+    setError("");
+    setResumeText("");
+
+    const fileName = file.name.toLowerCase();
+
+    // For plain text files, read client-side (faster)
+    if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string || "";
+        setResumeText(text);
+      };
+      reader.onerror = () => {
+        setError("Failed to read the uploaded file.");
+        setResumeText("");
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    // For PDF/DOCX, send to server for parsing
+    if (fileName.endsWith('.pdf') || fileName.endsWith('.docx')) {
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/parse-resume', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to parse the file');
+        }
+
+        setResumeText(data.text);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to parse the uploaded file.');
+        setResumeText("");
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
+    setError("Unsupported file type. Please upload a .pdf, .docx, .txt, or .md file.");
+  };
+
+  const handleAnalyze = async () => {
+    const finalResume = resumeMode === 'default' ? DEFAULT_RESUME : resumeText;
+
+    if (!finalResume.trim()) {
+      setError("Please provide a resume (either default, pasted, or uploaded file).");
+      return;
+    }
+
+    if (!jobDescription.trim()) {
+      setError("Please paste the job description.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setResult(null);
+
+    try {
+      const response = await fetch('/api/check-job', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resume: finalResume,
+          job_description: jobDescription,
+          provider: provider
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to analyze the job description");
+      }
+
+      setResult(data);
+      setActiveTab('verdict');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred during analysis.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Color mappings based on score
+  const getScoreColors = (score: number) => {
+    if (score >= 75) return { stroke: "stroke-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50 text-emerald-800 border-emerald-200" };
+    if (score >= 50) return { stroke: "stroke-amber-500", text: "text-amber-600", bg: "bg-amber-50 text-amber-800 border-amber-200" };
+    return { stroke: "stroke-rose-500", text: "text-rose-600", bg: "bg-rose-50 text-rose-800 border-rose-200" };
+  };
+
+  const getRecommendationBadge = (rec: string) => {
+    switch (rec) {
+      case "Apply":
+        return <span className="px-4 py-1.5 rounded-full text-sm font-semibold border bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm animate-pulse">🚀 Apply Now</span>;
+      case "Apply with Reservations":
+        return <span className="px-4 py-1.5 rounded-full text-sm font-semibold border bg-amber-100 text-amber-800 border-amber-300 shadow-sm">⚠️ Apply with Reservations</span>;
+      default:
+        return <span className="px-4 py-1.5 rounded-full text-sm font-semibold border bg-rose-100 text-rose-800 border-rose-300 shadow-sm">❌ Do Not Apply</span>;
+    }
+  };
+
+  const currentScoreDetails = result ? getScoreColors(result.score) : null;
+  const strokeDashoffset = result ? 251.2 - (251.2 * result.score) / 100 : 251.2;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-gray-800 font-sans flex flex-col relative overflow-hidden">
+      {/* Background Ambient Glows */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+      <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-indigo-400/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+      <Navbar />
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+        
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2.5">
+              <span>🎯</span> Job Match Analyzer
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Compare your credentials against a job description to evaluate your fit.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">AI Model:</span>
+            <select 
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg text-slate-600 outline-none focus:ring-1 focus:ring-blue-500 py-1.5 px-3 bg-white hover:bg-slate-50 transition-colors cursor-pointer font-semibold shadow-2xs"
+            >
+              {availableModels.length > 0 ? (
+                availableModels.map((model) => (
+                  <option key={model.id} value={model.id} disabled={!model.available}>
+                    {model.name} {!model.available && "(Unavailable)"}
+                  </option>
+                ))
+              ) : (
+                <option value="gemini">Google (Gemini 3.5 Flash)</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+        
+        {/* Left Column - Inputs */}
+        <div className="flex-1 flex flex-col gap-6">
+          
+          {/* Resume Section */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="border-b border-gray-100 px-5 py-4 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Your Resume</h2>
+                <p className="text-xs text-gray-500">Provide the credentials to match against</p>
+              </div>
+              <div className="flex gap-1 bg-gray-200/60 p-1 rounded-lg self-start sm:self-auto">
+                <button
+                  onClick={() => handleResumeModeChange('default')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    resumeMode === 'default' ? "bg-white text-blue-600 shadow-xs" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  📄 Default
+                </button>
+                <button
+                  onClick={() => handleResumeModeChange('paste')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    resumeMode === 'paste' ? "bg-white text-blue-600 shadow-xs" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  ✍️ Paste Text
+                </button>
+                <button
+                  onClick={() => handleResumeModeChange('upload')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    resumeMode === 'upload' ? "bg-white text-blue-600 shadow-xs" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  📤 Upload
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 flex-1 min-h-[220px] flex flex-col">
+              {resumeMode === 'default' && (
+                <div className="flex-1 bg-slate-50 border border-slate-100 rounded-lg p-4 font-mono text-xs text-gray-600 overflow-y-auto max-h-[260px] leading-relaxed">
+                  <pre className="whitespace-pre-wrap">{DEFAULT_RESUME}</pre>
+                </div>
+              )}
+
+              {resumeMode === 'paste' && (
+                <textarea
+                  className="flex-1 w-full p-4 border border-gray-200 rounded-lg outline-none text-sm text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 bg-white resize-none min-h-[200px]"
+                  placeholder="Paste your markdown or plain-text resume here..."
+                  value={pastedResume}
+                  onChange={handlePastedResumeChange}
+                />
+              )}
+
+              {resumeMode === 'upload' && (
+                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 bg-slate-50/50 hover:bg-slate-50 transition-colors relative">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="text-center flex flex-col items-center gap-2">
+                    {isUploading ? (
+                      <>
+                        <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-sm font-medium text-blue-600">Parsing {uploadedFileName}...</p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-3xl">📁</span>
+                        <p className="text-sm font-medium text-gray-700">
+                          {uploadedFileName ? `✅ Loaded: ${uploadedFileName}` : "Drag & drop a file here, or click to browse"}
+                        </p>
+                        <p className="text-xs text-gray-400">Supports .pdf, .docx, .txt, and .md files</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Job Description Section */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[280px]">
+            <div className="border-b border-gray-100 px-5 py-4 bg-gray-50">
+              <h2 className="text-base font-semibold text-gray-800">Job Description</h2>
+              <p className="text-xs text-gray-500">Paste the details of the job you are targeting</p>
+            </div>
+            <div className="p-5 flex-1 flex flex-col">
+              <textarea
+                className="flex-1 w-full p-4 border border-gray-200 rounded-lg outline-none text-sm text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 bg-white resize-none min-h-[160px]"
+                placeholder="Paste responsibilities, requirements, technology stack..."
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+              />
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
+              {(jobDescription.trim() || (resumeMode !== 'default' && resumeText.trim()) || result) && (
+                <button
+                  onClick={() => {
+                    setJobDescription("");
+                    setPastedResume("");
+                    setUploadedFileName("");
+                    if (resumeMode !== 'default') {
+                      setResumeText("");
+                    }
+                    setResult(null);
+                    setError("");
+                  }}
+                  className="px-4 py-2.5 rounded-lg font-semibold text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 transition-all cursor-pointer"
+                >
+                  Clear All
+                </button>
+              )}
+              <button
+                onClick={handleAnalyze}
+                disabled={isLoading || !jobDescription.trim() || (resumeMode !== 'default' && !resumeText.trim())}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-blue-100 cursor-pointer"
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Scanning Credentials...
+                  </>
+                ) : (
+                  <>
+                    <span>🔍</span> Analyze Match
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Column - Results */}
+        <div className="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative min-h-[500px]">
+          
+          {/* Header */}
+          <div className="border-b border-gray-100 px-5 py-4 bg-gray-50 flex justify-between items-center">
+            <h2 className="text-base font-semibold text-gray-800">Match Report</h2>
+            {result && (
+              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${currentScoreDetails?.bg}`}>
+                Match Fit: {result.score}%
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 flex flex-col">
+            {isLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/20">
+                {/* Custom glowing radar/document scanning micro-animation */}
+                <div className="relative w-40 h-40 flex items-center justify-center">
+                  <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-blue-500 rounded-full animate-ping opacity-10"></div>
+                  <div className="absolute top-0 bottom-0 left-0 right-0 m-auto w-24 h-32 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col p-3 overflow-hidden">
+                    <div className="w-full h-2 bg-blue-100 rounded mb-2"></div>
+                    <div className="w-5/6 h-2 bg-gray-100 rounded mb-2"></div>
+                    <div className="w-full h-2 bg-gray-100 rounded mb-2"></div>
+                    <div className="w-4/6 h-2 bg-gray-100 rounded mb-4"></div>
+                    <div className="w-full h-1 bg-green-100 rounded mb-1"></div>
+                    <div className="w-5/6 h-1 bg-green-100 rounded"></div>
+                  </div>
+                  {/* Glowing Laser Scan Bar */}
+                  <div className="absolute left-4 right-4 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-lg shadow-blue-500 animate-bounce"></div>
+                </div>
+                <h3 className="mt-6 text-base font-semibold text-gray-800">Evaluating Job Fit</h3>
+                <p className="text-xs text-gray-500 max-w-xs text-center mt-1">
+                  Gemini is matching your skills, parsing requirements, and organizing recommendations...
+                </p>
+              </div>
+            ) : error ? (
+              <div className="p-6">
+                <div className="text-rose-500 p-4 border border-rose-200 bg-rose-50 rounded-lg flex items-start gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <h4 className="font-semibold text-sm">Error Loading Analysis</h4>
+                    <p className="text-xs mt-1 leading-relaxed">{error}</p>
+                  </div>
+                </div>
+              </div>
+            ) : result ? (
+              <div className="flex-1 flex flex-col">
+                
+                {/* Score and Recommendation Dashboard Header */}
+                <div className="p-6 bg-gradient-to-br from-slate-50 to-white border-b border-gray-100 flex flex-col sm:flex-row items-center gap-6">
+                  {/* Radial Gauge */}
+                  <div className="relative flex items-center justify-center">
+                    <svg className="w-24 h-24 transform -rotate-90">
+                      <circle cx="48" cy="48" r="40" className="stroke-gray-200 fill-transparent" strokeWidth="6" />
+                      <circle
+                        cx="48"
+                        cy="48"
+                        r="40"
+                        className={`fill-transparent transition-all duration-1000 ease-out ${currentScoreDetails?.stroke}`}
+                        strokeWidth="6"
+                        strokeDasharray="251.2"
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className={`absolute text-2xl font-bold ${currentScoreDetails?.text}`}>
+                      {result.score}%
+                    </span>
+                  </div>
+
+                  <div className="flex-1 text-center sm:text-left">
+                    <div className="mb-2">{getRecommendationBadge(result.recommendation)}</div>
+                    <p className="text-sm font-medium text-gray-700 leading-tight">
+                      Experience Fit Check:
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5 italic">
+                      &quot;{result.matchAnalysis.experienceFit}&quot;
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="flex border-b border-gray-200 px-4 bg-gray-50">
+                  <button
+                    onClick={() => setActiveTab('verdict')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'verdict' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    📝 Verdict
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('proscons')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'proscons' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    ⚖️ Pros & Cons
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('skills')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'skills' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    💡 Skills
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('tips')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'tips' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    🚀 Tweak Resume
+                  </button>
+                </div>
+
+                {/* Tab Panel Contents */}
+                <div className="flex-1 p-6 overflow-y-auto max-h-[380px]">
+                  
+                  {activeTab === 'verdict' && (
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Detailed Analysis</h4>
+                        <p className="text-sm text-gray-700 leading-relaxed font-light bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                          {result.details}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Culture Alignment</h4>
+                        <p className="text-sm text-gray-600 leading-relaxed italic bg-blue-50/20 p-4 rounded-lg border border-blue-50/30">
+                          📌 &quot;{result.matchAnalysis.cultureFit}&quot;
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'proscons' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="bg-emerald-50/30 border border-emerald-100/50 rounded-xl p-4">
+                        <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                          <span>✅</span> Key Strengths (Pros)
+                        </h4>
+                        <ul className="flex flex-col gap-2.5">
+                          {result.pros.map((pro, idx) => (
+                            <li key={idx} className="text-xs text-gray-700 leading-relaxed flex items-start gap-2">
+                              <span className="text-emerald-500 text-sm mt-0.5">•</span>
+                              <span>{pro}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="bg-rose-50/30 border border-rose-100/50 rounded-xl p-4">
+                        <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                          <span>⚠️</span> Risks & Gaps (Cons)
+                        </h4>
+                        <ul className="flex flex-col gap-2.5">
+                          {result.cons.map((con, idx) => (
+                            <li key={idx} className="text-xs text-gray-700 leading-relaxed flex items-start gap-2">
+                              <span className="text-rose-500 text-sm mt-0.5">•</span>
+                              <span>{con}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'skills' && (
+                    <div className="flex flex-col gap-5">
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-2 flex items-center gap-1">
+                          <span>✨</span> Skills You Possess
+                        </h4>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.matchAnalysis.matchingSkills.length > 0 ? (
+                            result.matchAnalysis.matchingSkills.map((skill, idx) => (
+                              <span key={idx} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md text-xs font-semibold shadow-2xs">
+                                {skill}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-gray-500 italic">No exact skill matches detected.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wide mb-2 flex items-center gap-1">
+                          <span>🔍</span> Gaps to Address
+                        </h4>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.matchAnalysis.missingSkills.length > 0 ? (
+                            result.matchAnalysis.missingSkills.map((skill, idx) => (
+                              <span key={idx} className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-100 rounded-md text-xs font-semibold shadow-2xs">
+                                {skill}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-emerald-600 font-medium">Excellent profile match! No major skills missing.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'tips' && (
+                    <div>
+                      <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <span>💡</span> Tailoring Recommendations
+                      </h4>
+                      <ul className="flex flex-col gap-3">
+                        {result.resumeTips.map((tip, idx) => (
+                          <li key={idx} className="bg-blue-50/20 border border-blue-100/30 rounded-lg p-3 text-xs text-gray-700 leading-relaxed flex items-start gap-2.5">
+                            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-bold text-[10px] shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/10">
+                <span className="text-5xl mb-4">🔮</span>
+                <h3 className="text-base font-semibold text-gray-800">Ready for Scan</h3>
+                <p className="text-xs text-gray-500 max-w-xs mt-1">
+                  Paste the job posting description on the left, select/paste your resume, and click &quot;Analyze Match&quot; to generate your fit analysis.
+                </p>
+              </div>
+            )}
+          </div>
+ 
+        </div>
+ 
+      </div>
+      </main>
+    </div>
+  );
+}

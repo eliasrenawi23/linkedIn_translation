@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       
-      const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
       const prompt = `${SYSTEM_PROMPT}\n\nPlease translate this LinkedIn post and output only JSON:\n\n${post_text}`;
       
       const result = await model.generateContent({
