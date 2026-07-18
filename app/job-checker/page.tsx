@@ -20,6 +20,12 @@ interface AnalysisResult {
     resumeEvidence: string;
     explanation: string;
   }>;
+  resumeTailoring: {
+    summary: { suggested: string; evidenceSources: string[] };
+    prioritizedSkills: string[];
+    bulletRewrites: Array<{ original: string; suggested: string; evidenceSource: string }>;
+    unsupportedKeywords: string[];
+  };
   pros: string[];
   cons: string[];
   details: string;
@@ -41,6 +47,8 @@ export default function JobChecker() {
   const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips'>('verdict');
   const [provider, setProvider] = useState("gemini");
   const [availableModels, setAvailableModels] = useState<{id: string, name: string, available: boolean}[]>([]);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState<string[]>([]);
+  const [copiedSuggestion, setCopiedSuggestion] = useState("");
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -150,6 +158,8 @@ export default function JobChecker() {
     setIsLoading(true);
     setError("");
     setResult(null);
+    setAcceptedSuggestions([]);
+    setCopiedSuggestion("");
 
     try {
       const response = await fetch('/api/check-job', {
@@ -176,6 +186,20 @@ export default function JobChecker() {
       setError(err instanceof Error ? err.message : "An error occurred during analysis.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const toggleSuggestion = (id: string) => {
+    setAcceptedSuggestions((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const copySuggestion = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSuggestion(id);
+      window.setTimeout(() => setCopiedSuggestion((current) => current === id ? "" : current), 1600);
+    } catch {
+      setCopiedSuggestion("");
     }
   };
 
@@ -702,20 +726,93 @@ export default function JobChecker() {
                   )}
 
                   {activeTab === 'tips' && (
-                    <div>
-                      <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <span>💡</span> Tailoring Recommendations
-                      </h4>
-                      <ul className="flex flex-col gap-3">
-                        {result.resumeTips.map((tip, idx) => (
-                          <li key={idx} className="bg-blue-50/20 border border-blue-100/30 rounded-lg p-3 text-xs text-gray-700 leading-relaxed flex items-start gap-2.5">
-                            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-bold text-[10px] shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span>{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="flex flex-col gap-5">
+                      <section>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wide">Suggested Summary</h4>
+                          <div className="flex gap-1.5">
+                            <button type="button" onClick={() => void copySuggestion('summary', result.resumeTailoring.summary.suggested)} className="px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
+                              {copiedSuggestion === 'summary' ? 'Copied' : 'Copy'}
+                            </button>
+                            <button type="button" onClick={() => toggleSuggestion('summary')} className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold ${acceptedSuggestions.includes('summary') ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-white border-blue-200 text-blue-700 hover:bg-blue-50"}`}>
+                              {acceptedSuggestions.includes('summary') ? 'Accepted' : 'Accept'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className={`rounded-xl border p-4 ${acceptedSuggestions.includes('summary') ? "border-emerald-200 bg-emerald-50/30" : "border-blue-100 bg-blue-50/20"}`}>
+                          <p className="text-sm text-slate-700 leading-relaxed">{result.resumeTailoring.summary.suggested}</p>
+                          <div className="mt-3 pt-3 border-t border-slate-200/60">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Supported by</span>
+                            <ul className="mt-1 flex flex-col gap-1">
+                              {result.resumeTailoring.summary.evidenceSources.map((source, idx) => <li key={idx} className="text-xs text-slate-500">• {source}</li>)}
+                            </ul>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Prioritized Skills</h4>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.resumeTailoring.prioritizedSkills.map((skill, idx) => (
+                            <span key={`${skill}-${idx}`} className="px-2.5 py-1 rounded-md bg-violet-50 border border-violet-100 text-violet-700 text-xs font-semibold">{idx + 1}. {skill}</span>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Bullet Rewrites</h4>
+                        {result.resumeTailoring.bulletRewrites.length > 0 ? (
+                          <div className="flex flex-col gap-3">
+                            {result.resumeTailoring.bulletRewrites.map((rewrite, idx) => {
+                              const id = `bullet-${idx}`;
+                              const accepted = acceptedSuggestions.includes(id);
+                              return (
+                                <article key={id} className={`rounded-xl border overflow-hidden ${accepted ? "border-emerald-200" : "border-slate-200"}`}>
+                                  <div className="p-3 bg-rose-50/30 border-b border-slate-100">
+                                    <span className="block text-[10px] font-bold text-rose-500 uppercase tracking-wide mb-1">Before</span>
+                                    <p className="text-xs text-slate-600 leading-relaxed">{rewrite.original}</p>
+                                  </div>
+                                  <div className={`p-3 ${accepted ? "bg-emerald-50/30" : "bg-white"}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">After</span>
+                                        <p className="text-xs text-slate-700 leading-relaxed font-medium">{rewrite.suggested}</p>
+                                      </div>
+                                      <div className="flex gap-1 shrink-0">
+                                        <button type="button" onClick={() => void copySuggestion(id, rewrite.suggested)} className="px-2 py-1 rounded border border-slate-200 text-[10px] font-semibold text-slate-600 hover:bg-slate-50">{copiedSuggestion === id ? 'Copied' : 'Copy'}</button>
+                                        <button type="button" onClick={() => toggleSuggestion(id)} className={`px-2 py-1 rounded border text-[10px] font-semibold ${accepted ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "border-blue-200 text-blue-700 hover:bg-blue-50"}`}>{accepted ? 'Accepted' : 'Accept'}</button>
+                                      </div>
+                                    </div>
+                                    <p className="mt-2 text-[11px] text-slate-400"><span className="font-semibold">Evidence:</span> {rewrite.evidenceSource}</p>
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        ) : <p className="text-xs text-slate-500 italic">No resume bullets were suitable for a safe rewrite.</p>}
+                      </section>
+
+                      {result.resumeTailoring.unsupportedKeywords.length > 0 && (
+                        <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                          <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wide">Do Not Add Without Evidence</h4>
+                          <p className="text-xs text-amber-700 mt-1 mb-2">These job keywords are relevant, but your resume does not currently support them.</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {result.resumeTailoring.unsupportedKeywords.map((keyword, idx) => <span key={`${keyword}-${idx}`} className="px-2 py-1 rounded bg-white border border-amber-200 text-amber-800 text-xs">{keyword}</span>)}
+                          </div>
+                        </section>
+                      )}
+
+                      <section>
+                        <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-3">Additional Recommendations</h4>
+                        <ul className="flex flex-col gap-2">
+                          {result.resumeTips.map((tip, idx) => (
+                            <li key={idx} className="bg-blue-50/20 border border-blue-100/30 rounded-lg p-3 text-xs text-gray-700 leading-relaxed flex items-start gap-2.5">
+                              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-800 font-bold text-[10px] shrink-0">{idx + 1}</span>
+                              <span>{tip}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     </div>
                   )}
 

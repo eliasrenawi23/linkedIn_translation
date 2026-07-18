@@ -52,6 +52,19 @@ const validJobMatch = {
     resumeEvidence: "Built TypeScript services.",
     explanation: "The resume contains direct evidence.",
   }],
+  resumeTailoring: {
+    summary: {
+      suggested: "TypeScript developer with experience building services.",
+      evidenceSources: ["Built TypeScript services."],
+    },
+    prioritizedSkills: ["TypeScript"],
+    bulletRewrites: [{
+      original: "Built services with TypeScript.",
+      suggested: "Built TypeScript services for production workflows.",
+      evidenceSource: "Built services with TypeScript.",
+    }],
+    unsupportedKeywords: ["Kubernetes"],
+  },
   pros: ["Strong core stack"],
   cons: ["Limited domain evidence"],
   details: "The core requirements are supported.",
@@ -79,4 +92,21 @@ test("job match validation rejects invalid evidence status", () => {
 
 test("job match validation requires at least one evidence entry", () => {
   assert.throws(() => validateJobMatchResult({ ...validJobMatch, requirements: [] }), SchemaValidationError);
+});
+
+test("job match validation rejects invented tailoring fields", () => {
+  assert.throws(() => validateJobMatchResult({
+    ...validJobMatch,
+    resumeTailoring: { ...validJobMatch.resumeTailoring, inventedMetric: "50%" },
+  }), SchemaValidationError);
+});
+
+test("job match validation rejects incomplete bullet rewrites", () => {
+  assert.throws(() => validateJobMatchResult({
+    ...validJobMatch,
+    resumeTailoring: {
+      ...validJobMatch.resumeTailoring,
+      bulletRewrites: [{ original: "Built services." }],
+    },
+  }), SchemaValidationError);
 });

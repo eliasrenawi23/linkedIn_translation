@@ -16,6 +16,20 @@ export type RequirementEvidence = {
   explanation: string;
 };
 
+export type ResumeTailoring = {
+  summary: {
+    suggested: string;
+    evidenceSources: string[];
+  };
+  prioritizedSkills: string[];
+  bulletRewrites: Array<{
+    original: string;
+    suggested: string;
+    evidenceSource: string;
+  }>;
+  unsupportedKeywords: string[];
+};
+
 export type JobMatchResult = {
   score: number;
   recommendation: JobMatchRecommendation;
@@ -26,6 +40,7 @@ export type JobMatchResult = {
     cultureFit: string;
   };
   requirements: RequirementEvidence[];
+  resumeTailoring: ResumeTailoring;
   pros: string[];
   cons: string[];
   details: string;
@@ -98,6 +113,37 @@ function requirementArray(value: unknown): RequirementEvidence[] {
   });
 }
 
+function resumeTailoring(value: unknown): ResumeTailoring {
+  const tailoring = object(value, "resumeTailoring");
+  exactKeys(tailoring, ["summary", "prioritizedSkills", "bulletRewrites", "unsupportedKeywords"], "resumeTailoring");
+  const summary = object(tailoring.summary, "resumeTailoring.summary");
+  exactKeys(summary, ["suggested", "evidenceSources"], "resumeTailoring.summary");
+
+  if (!Array.isArray(tailoring.bulletRewrites) || tailoring.bulletRewrites.length > 6) {
+    throw new SchemaValidationError("resumeTailoring.bulletRewrites must contain at most 6 entries");
+  }
+  const bulletRewrites = tailoring.bulletRewrites.map((entry, index) => {
+    const path = `resumeTailoring.bulletRewrites[${index}]`;
+    const rewrite = object(entry, path);
+    exactKeys(rewrite, ["original", "suggested", "evidenceSource"], path);
+    return {
+      original: string(rewrite.original, `${path}.original`),
+      suggested: string(rewrite.suggested, `${path}.suggested`),
+      evidenceSource: string(rewrite.evidenceSource, `${path}.evidenceSource`),
+    };
+  });
+
+  return {
+    summary: {
+      suggested: string(summary.suggested, "resumeTailoring.summary.suggested"),
+      evidenceSources: stringArray(summary.evidenceSources, "resumeTailoring.summary.evidenceSources", 6),
+    },
+    prioritizedSkills: stringArray(tailoring.prioritizedSkills, "resumeTailoring.prioritizedSkills", 16),
+    bulletRewrites,
+    unsupportedKeywords: stringArray(tailoring.unsupportedKeywords, "resumeTailoring.unsupportedKeywords", 16),
+  };
+}
+
 export function validateTranslationResult(value: unknown): TranslationResult {
   const result = object(value, "translation result");
   exactKeys(result, ["headline", "translation", "score"], "translation result");
@@ -110,7 +156,7 @@ export function validateTranslationResult(value: unknown): TranslationResult {
 
 export function validateJobMatchResult(value: unknown): JobMatchResult {
   const result = object(value, "job match result");
-  exactKeys(result, ["score", "recommendation", "matchAnalysis", "requirements", "pros", "cons", "details", "resumeTips"], "job match result");
+  exactKeys(result, ["score", "recommendation", "matchAnalysis", "requirements", "resumeTailoring", "pros", "cons", "details", "resumeTips"], "job match result");
   const analysis = object(result.matchAnalysis, "matchAnalysis");
   exactKeys(analysis, ["matchingSkills", "missingSkills", "experienceFit", "cultureFit"], "matchAnalysis");
 
@@ -129,6 +175,7 @@ export function validateJobMatchResult(value: unknown): JobMatchResult {
       cultureFit: string(analysis.cultureFit, "matchAnalysis.cultureFit"),
     },
     requirements: requirementArray(result.requirements),
+    resumeTailoring: resumeTailoring(result.resumeTailoring),
     pros: stringArray(result.pros, "pros"),
     cons: stringArray(result.cons, "cons"),
     details: string(result.details, "details"),

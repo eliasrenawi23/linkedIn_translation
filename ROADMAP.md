@@ -18,8 +18,8 @@ Build a focused application assistant around one repeatable workflow:
 | 1. Reliable job intake | Complete |
 | 2. Trustworthy structured analysis | Complete |
 | 3. Evidence matrix | Complete |
-| 4. Resume tailoring | Next |
-| 5. Application package | Planned |
+| 4. Resume tailoring | Complete |
+| 5. Application package | Next |
 | 6. History and comparison | Planned |
 | 7. Multi-model review | Planned |
 
@@ -92,12 +92,18 @@ Acceptance criteria:
 
 ## Milestone 4 - Resume tailoring
 
-Status: Next
+Status: Complete
 
-- Generate a role-specific summary, skill ordering, and bullet rewrites.
-- Only transform facts supported by the original resume.
-- Show before/after diffs and allow copying individual suggestions.
-- Preserve the original resume throughout the session.
+Delivered:
+
+- Generate a role-specific professional summary with supporting resume facts.
+- Prioritize skills already evidenced in the resume by relevance to the job.
+- Generate evidence-grounded bullet rewrites without changing facts, scope, metrics, technologies, or seniority.
+- Show before/after bullet comparisons with individual Copy and Accept controls.
+- Preserve the original resume throughout the session; accepting a suggestion only marks it locally.
+- Identify attractive job keywords that must not be inserted without supporting evidence.
+- Validate every tailoring field at runtime and reject unexpected or incomplete structures.
+- Cover unsupported fields and incomplete bullet rewrites with regression tests.
 
 Acceptance criteria:
 
@@ -107,7 +113,7 @@ Acceptance criteria:
 
 ## Milestone 5 - Application package
 
-Status: Planned
+Status: Next
 
 - Generate a concise cover letter, recruiter message, connection note, and interview talking points.
 - Reuse the verified evidence matrix rather than analyzing from scratch.

@@ -80,6 +80,27 @@ The JSON object must have exactly this structure and no extra top-level keys:
       "explanation": "A concise explanation of why the evidence supports this status"
     }
   ],
+  "resumeTailoring": {
+    "summary": {
+      "suggested": "A concise 2-3 sentence role-specific professional summary using only facts supported by the resume",
+      "evidenceSources": [
+        "Concise resume fact that supports the suggested summary"
+      ]
+    },
+    "prioritizedSkills": [
+      "A skill already present in the resume, ordered by relevance to this job"
+    ],
+    "bulletRewrites": [
+      {
+        "original": "An exact or near-exact bullet from the submitted resume",
+        "suggested": "A clearer, job-relevant rewrite that preserves the original facts",
+        "evidenceSource": "The specific resume fact supporting every claim in the rewrite"
+      }
+    ],
+    "unsupportedKeywords": [
+      "Relevant job keyword that should not be added because the resume provides no evidence"
+    ]
+  },
   "pros": [
     "Specific evidence-based reason why the candidate fits the role"
   ],
@@ -107,6 +128,15 @@ Content requirements:
 - Use "unclear" when the resume language is too ambiguous to judge fairly.
 - Every must-have requirement that affects the score must appear in "requirements".
 - Never invent resume evidence. For missing evidence, write exactly "No evidence found in the resume".
+- "resumeTailoring.summary.suggested" must contain only claims supported by the resume.
+- "resumeTailoring.summary.evidenceSources" should include 1-6 concise supporting resume facts.
+- "prioritizedSkills" may only contain skills already evidenced in the resume and should be ordered by relevance.
+- "bulletRewrites" should contain 2-5 entries when the resume has suitable bullets, otherwise return an empty array.
+- Each "bulletRewrites.original" must reproduce an existing resume bullet or sentence closely enough for the user to locate it.
+- Rewrites may improve clarity, action verbs, and emphasis but must preserve facts, scope, metrics, technologies, and seniority.
+- Never add a metric, tool, responsibility, achievement, or level that the original resume does not support.
+- Put attractive job keywords without resume evidence in "unsupportedKeywords" instead of inserting them into suggestions.
+- If every relevant keyword is supported, return an empty "unsupportedKeywords" array.
 - If there are no meaningful missing skills, return an empty array for "missingSkills".
 - If there are no meaningful cons, include minor improvement areas rather than inventing serious gaps.
 - Keep each array item concise but specific.
@@ -150,7 +180,7 @@ Please analyze the resume against the job description and output only the valid 
       systemPrompt: SYSTEM_PROMPT,
       userPrompt: prompt,
       temperature: 0.3,
-      maxTokens: 4096,
+      maxTokens: 6144,
     });
     return NextResponse.json(validateJobMatchResult(result));
 
