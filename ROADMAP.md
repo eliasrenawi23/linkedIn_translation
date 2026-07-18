@@ -19,8 +19,8 @@ Build a focused application assistant around one repeatable workflow:
 | 2. Trustworthy structured analysis | Complete |
 | 3. Evidence matrix | Complete |
 | 4. Resume tailoring | Complete |
-| 5. Application package | Next |
-| 6. History and comparison | Planned |
+| 5. Application package | Complete |
+| 6. History and comparison | Next |
 | 7. Multi-model review | Planned |
 
 ## Milestone 1 - Reliable job intake
@@ -113,15 +113,23 @@ Acceptance criteria:
 
 ## Milestone 5 - Application package
 
-Status: Next
+Status: Complete
 
-- Generate a concise cover letter, recruiter message, connection note, and interview talking points.
-- Reuse the verified evidence matrix rather than analyzing from scratch.
-- Provide tone and length controls.
+Delivered:
+
+- Generate a cover letter, recruiter message, connection note, honest company-interest response, and interview talking points.
+- Run generation on demand so the normal analysis remains faster and less expensive.
+- Reuse the submitted resume, job description, and verified evidence matrix rather than performing a second independent assessment.
+- Provide professional, warm, and direct tone controls.
+- Provide concise, standard, and detailed length controls.
+- Enforce a 280-character connection-note limit.
+- Display every output in a dedicated Apply Kit tab with individual copy controls.
+- Validate the complete application package at runtime and reject unexpected or incomplete structures.
+- Cover valid packages, insufficient talking points, and unexpected fields with regression tests.
 
 ## Milestone 6 - History and comparison
 
-Status: Planned
+Status: Next
 
 - Save recent analyses locally before adding accounts or a database.
 - Store job metadata, score, resume version, date, and favorite state.

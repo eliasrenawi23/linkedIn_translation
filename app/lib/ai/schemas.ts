@@ -30,6 +30,14 @@ export type ResumeTailoring = {
   unsupportedKeywords: string[];
 };
 
+export type ApplicationPackage = {
+  coverLetter: string;
+  recruiterMessage: string;
+  connectionNote: string;
+  whyThisCompany: string;
+  interviewTalkingPoints: string[];
+};
+
 export type JobMatchResult = {
   score: number;
   recommendation: JobMatchRecommendation;
@@ -86,7 +94,7 @@ function stringArray(value: unknown, path: string, maxItems = 12): string[] {
   return value.map((item, index) => string(item, `${path}[${index}]`));
 }
 
-function requirementArray(value: unknown): RequirementEvidence[] {
+export function validateRequirementEvidence(value: unknown): RequirementEvidence[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > 20) {
     throw new SchemaValidationError("requirements must contain between 1 and 20 entries");
   }
@@ -111,6 +119,20 @@ function requirementArray(value: unknown): RequirementEvidence[] {
       explanation: string(requirement.explanation, `${path}.explanation`),
     };
   });
+}
+
+export function validateApplicationPackage(value: unknown): ApplicationPackage {
+  const result = object(value, "application package");
+  exactKeys(result, ["coverLetter", "recruiterMessage", "connectionNote", "whyThisCompany", "interviewTalkingPoints"], "application package");
+  const talkingPoints = stringArray(result.interviewTalkingPoints, "interviewTalkingPoints", 8);
+  if (talkingPoints.length < 3) throw new SchemaValidationError("interviewTalkingPoints must contain at least 3 items");
+  return {
+    coverLetter: string(result.coverLetter, "coverLetter"),
+    recruiterMessage: string(result.recruiterMessage, "recruiterMessage"),
+    connectionNote: string(result.connectionNote, "connectionNote"),
+    whyThisCompany: string(result.whyThisCompany, "whyThisCompany"),
+    interviewTalkingPoints: talkingPoints,
+  };
 }
 
 function resumeTailoring(value: unknown): ResumeTailoring {
@@ -174,7 +196,7 @@ export function validateJobMatchResult(value: unknown): JobMatchResult {
       experienceFit: string(analysis.experienceFit, "matchAnalysis.experienceFit"),
       cultureFit: string(analysis.cultureFit, "matchAnalysis.cultureFit"),
     },
-    requirements: requirementArray(result.requirements),
+    requirements: validateRequirementEvidence(result.requirements),
     resumeTailoring: resumeTailoring(result.resumeTailoring),
     pros: stringArray(result.pros, "pros"),
     cons: stringArray(result.cons, "cons"),

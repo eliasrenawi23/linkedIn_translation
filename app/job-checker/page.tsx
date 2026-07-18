@@ -32,6 +32,14 @@ interface AnalysisResult {
   resumeTips: string[];
 }
 
+interface ApplicationPackageResult {
+  coverLetter: string;
+  recruiterMessage: string;
+  connectionNote: string;
+  whyThisCompany: string;
+  interviewTalkingPoints: string[];
+}
+
 export default function JobChecker() {
   const [resumeMode, setResumeMode] = useState<'default' | 'paste' | 'upload'>('default');
   const [resumeText, setResumeText] = useState(DEFAULT_RESUME);
@@ -44,11 +52,16 @@ export default function JobChecker() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips'>('verdict');
+  const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips' | 'applykit'>('verdict');
   const [provider, setProvider] = useState("gemini");
   const [availableModels, setAvailableModels] = useState<{id: string, name: string, available: boolean}[]>([]);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<string[]>([]);
   const [copiedSuggestion, setCopiedSuggestion] = useState("");
+  const [applicationPackage, setApplicationPackage] = useState<ApplicationPackageResult | null>(null);
+  const [packageTone, setPackageTone] = useState<'professional' | 'warm' | 'direct'>('professional');
+  const [packageLength, setPackageLength] = useState<'concise' | 'standard' | 'detailed'>('standard');
+  const [isGeneratingPackage, setIsGeneratingPackage] = useState(false);
+  const [packageError, setPackageError] = useState("");
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -160,6 +173,8 @@ export default function JobChecker() {
     setResult(null);
     setAcceptedSuggestions([]);
     setCopiedSuggestion("");
+    setApplicationPackage(null);
+    setPackageError("");
 
     try {
       const response = await fetch('/api/check-job', {
@@ -200,6 +215,34 @@ export default function JobChecker() {
       window.setTimeout(() => setCopiedSuggestion((current) => current === id ? "" : current), 1600);
     } catch {
       setCopiedSuggestion("");
+    }
+  };
+
+  const handleGenerateApplicationPackage = async () => {
+    if (!result) return;
+    setIsGeneratingPackage(true);
+    setPackageError("");
+    setApplicationPackage(null);
+    try {
+      const response = await fetch('/api/application-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume: resumeMode === 'default' ? DEFAULT_RESUME : resumeText,
+          job_description: jobDescription,
+          requirements: result.requirements,
+          provider,
+          tone: packageTone,
+          length: packageLength,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not generate the application package');
+      setApplicationPackage(data);
+    } catch (error: unknown) {
+      setPackageError(error instanceof Error ? error.message : 'Could not generate the application package.');
+    } finally {
+      setIsGeneratingPackage(false);
     }
   };
 
@@ -584,6 +627,14 @@ export default function JobChecker() {
                   >
                     🚀 Tweak Resume
                   </button>
+                  <button
+                    onClick={() => setActiveTab('applykit')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'applykit' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    Apply Kit
+                  </button>
                 </div>
 
                 {/* Tab Panel Contents */}
@@ -813,6 +864,69 @@ export default function JobChecker() {
                           ))}
                         </ul>
                       </section>
+                    </div>
+                  )}
+
+                  {activeTab === 'applykit' && (
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">Application Package</h4>
+                        <p className="text-xs text-gray-500 mt-1">Generated from your resume and the verified evidence matrix. Review every message before sending.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                        <label className="text-xs font-semibold text-slate-600">
+                          Tone
+                          <select value={packageTone} onChange={(event) => setPackageTone(event.target.value as typeof packageTone)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="professional">Professional</option>
+                            <option value="warm">Warm</option>
+                            <option value="direct">Direct</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-semibold text-slate-600">
+                          Length
+                          <select value={packageLength} onChange={(event) => setPackageLength(event.target.value as typeof packageLength)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="concise">Concise</option>
+                            <option value="standard">Standard</option>
+                            <option value="detailed">Detailed</option>
+                          </select>
+                        </label>
+                        <button type="button" onClick={() => void handleGenerateApplicationPackage()} disabled={isGeneratingPackage} className="sm:col-span-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                          {isGeneratingPackage ? 'Generating application package...' : applicationPackage ? 'Regenerate Package' : 'Generate Application Package'}
+                        </button>
+                      </div>
+
+                      {packageError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{packageError}</div>}
+
+                      {applicationPackage && (
+                        <div className="flex flex-col gap-3">
+                          {[
+                            { id: 'cover-letter', label: 'Cover Letter', text: applicationPackage.coverLetter },
+                            { id: 'recruiter-message', label: 'Recruiter Message', text: applicationPackage.recruiterMessage },
+                            { id: 'connection-note', label: 'Connection Note', text: applicationPackage.connectionNote },
+                            { id: 'why-company', label: 'Why This Company?', text: applicationPackage.whyThisCompany },
+                          ].map((item) => (
+                            <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                              <div className="flex items-center justify-between gap-3 mb-2">
+                                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wide">{item.label}</h5>
+                                <button type="button" onClick={() => void copySuggestion(item.id, item.text)} className="px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">{copiedSuggestion === item.id ? 'Copied' : 'Copy'}</button>
+                              </div>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{item.text}</p>
+                              {item.id === 'connection-note' && <p className="mt-2 text-[10px] text-slate-400 text-right">{item.text.length}/280 characters</p>}
+                            </article>
+                          ))}
+
+                          <article className="rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Interview Talking Points</h5>
+                              <button type="button" onClick={() => void copySuggestion('talking-points', applicationPackage.interviewTalkingPoints.map((point) => `• ${point}`).join('\n'))} className="px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">{copiedSuggestion === 'talking-points' ? 'Copied' : 'Copy All'}</button>
+                            </div>
+                            <ul className="flex flex-col gap-2">
+                              {applicationPackage.interviewTalkingPoints.map((point, idx) => <li key={idx} className="text-sm text-slate-700 leading-relaxed flex gap-2"><span className="text-blue-500">•</span><span>{point}</span></li>)}
+                            </ul>
+                          </article>
+                        </div>
+                      )}
                     </div>
                   )}
 

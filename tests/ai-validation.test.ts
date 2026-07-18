@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
-import { SchemaValidationError, validateJobMatchResult, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+import { SchemaValidationError, validateApplicationPackage, validateJobMatchResult, validateTranslationResult } from "../app/lib/ai/schemas.ts";
 
 test("parseStructuredJson accepts plain and fenced JSON", () => {
   assert.deepEqual(parseStructuredJson('{"score": 10}'), { score: 10 });
@@ -109,4 +109,24 @@ test("job match validation rejects incomplete bullet rewrites", () => {
       bulletRewrites: [{ original: "Built services." }],
     },
   }), SchemaValidationError);
+});
+
+const validApplicationPackage = {
+  coverLetter: "A concise, evidence-based cover letter.",
+  recruiterMessage: "A recruiter message.",
+  connectionNote: "A short connection note.",
+  whyThisCompany: "The role aligns with the supplied experience.",
+  interviewTalkingPoints: ["TypeScript project", "Relevant ownership", "Team collaboration"],
+};
+
+test("application package validation accepts the documented contract", () => {
+  assert.deepEqual(validateApplicationPackage(validApplicationPackage), validApplicationPackage);
+});
+
+test("application package validation rejects too few talking points", () => {
+  assert.throws(() => validateApplicationPackage({ ...validApplicationPackage, interviewTalkingPoints: ["Only one"] }), SchemaValidationError);
+});
+
+test("application package validation rejects unexpected fields", () => {
+  assert.throws(() => validateApplicationPackage({ ...validApplicationPackage, inventedClaim: "No" }), SchemaValidationError);
 });
