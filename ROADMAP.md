@@ -22,6 +22,11 @@ Build a focused application assistant around one repeatable workflow:
 | 5. Application package | Complete |
 | 6. History and comparison | Complete |
 | 7. Multi-model review | Complete |
+| 8. Interview preparation workspace | Proposed - next |
+| 9. Application tracker | Proposed |
+| 10. Resume version workspace | Proposed |
+| 11. Analysis quality and cost controls | Proposed |
+| 12. Private account sync | Future |
 
 ## Milestone 1 - Reliable job intake
 
@@ -162,6 +167,172 @@ Delivered:
 - Add regression tests for review validation, score spread, shared findings, mixed outcomes, and unanimous recommendations.
 
 This remains opt-in because it increases cost and latency. The core single-model workflow remains the default.
+
+## Recommended next features
+
+The next phase should turn a strong one-time analysis into a complete application workflow. Features are ordered by user value, fit with the existing architecture, implementation risk, and dependency order.
+
+## Milestone 8 - Interview preparation workspace
+
+Status: Proposed - recommended next implementation
+
+Why this is next:
+
+- The app already has the resume, job requirements, evidence matrix, gaps, and talking points needed to produce grounded interview preparation.
+- It adds meaningful value without requiring accounts, a database, or third-party integrations.
+- It naturally continues the workflow after a user decides to apply.
+
+Proposed scope:
+
+- Add a dedicated Interview Prep page launched from a completed job analysis.
+- Generate likely recruiter, behavioral, technical, and role-specific questions.
+- Tie every suggested answer outline to evidence from the submitted resume.
+- Generate STAR answer frameworks while clearly marking missing situation, task, action, or result evidence.
+- Create a focused gap-defense section for missing or partial must-have requirements.
+- Add questions the candidate should ask the recruiter, hiring manager, and future team.
+- Let users mark questions as practiced, difficult, or complete during the current browser session.
+- Provide copy controls and a print-friendly preparation sheet.
+
+Acceptance criteria:
+
+- Suggested answers never invent employers, projects, metrics, tools, or responsibilities.
+- Every answer outline identifies its resume evidence source.
+- Weak evidence is labeled as a follow-up prompt instead of being silently completed by AI.
+- The page works without storing full resume or job-description text in persistent history.
+- Generation is explicit and on demand so it does not increase the normal analysis cost.
+
+Suggested implementation slices:
+
+1. Add validated interview-prep schemas and API generation.
+2. Pass the current analysis context through session storage.
+3. Build the question categories and evidence-linked answer cards.
+4. Add local practice state, copy actions, and print styling.
+5. Add validation, API, and UI regression tests.
+
+Suggested commit:
+
+`feat(interview): add evidence-grounded interview preparation workspace`
+
+## Milestone 9 - Application tracker
+
+Status: Proposed
+
+User value:
+
+- Turn saved analyses into an actionable job-search pipeline.
+- Help users remember follow-ups, interviews, and outcomes.
+
+Proposed scope:
+
+- Promote a history entry into an application with a status: Interested, Applied, Recruiter Screen, Interviewing, Offer, Rejected, or Withdrawn.
+- Store application date, next action, due date, contact name, notes, and source URL.
+- Add board and list views with filters for status, favorites, company, and due actions.
+- Highlight overdue follow-ups and applications with no activity.
+- Export and import versioned tracker data.
+- Keep tracker data local-first until account sync is implemented.
+
+Acceptance criteria:
+
+- Existing history files continue to import successfully.
+- Tracker migrations are versioned and tested.
+- Full resume and job-description bodies are not stored in tracker records.
+- Status changes and notes work offline in the browser.
+
+## Milestone 10 - Resume version workspace
+
+Status: Proposed
+
+User value:
+
+- Convert accepted tailoring suggestions into reusable, role-specific resume versions.
+- Make it clear which version was used for each application.
+
+Proposed scope:
+
+- Create named resume profiles such as Default, Backend, Full Stack, and Leadership.
+- Build a tailored draft from individually accepted summary, skill, and bullet suggestions.
+- Show a side-by-side diff against the source resume.
+- Preserve evidence links for every changed claim.
+- Export the tailored draft as Markdown and plain text first; consider DOCX after the content workflow is stable.
+- Attach a resume-version identifier to history and application tracker records.
+
+Acceptance criteria:
+
+- The original resume is always recoverable and never overwritten.
+- Unsupported keywords cannot be accepted as resume claims.
+- Each generated change retains its source evidence.
+- Exported text is readable without application-specific formatting.
+
+## Milestone 11 - Analysis quality and cost controls
+
+Status: Proposed
+
+User value:
+
+- Make AI behavior easier to understand, reproduce, and control.
+- Reduce accidental provider spending and improve production reliability.
+
+Proposed scope:
+
+- Show model name, request duration, retry count, and generation timestamp on results.
+- Estimate token usage and cost when the provider returns reliable usage metadata.
+- Add per-feature provider preferences for analysis, application package, interview prep, and comparison.
+- Add configurable spending warnings before multi-model or long-form generation.
+- Add deployment-level rate limiting and request correlation IDs.
+- Add a privacy-safe diagnostics view that excludes resume and job-description bodies.
+- Add an explicit cancel action for long-running UI requests using `AbortController`.
+
+Acceptance criteria:
+
+- Cost labels distinguish exact provider-reported usage from estimates.
+- Request cancellation returns the UI to a usable state.
+- Logs and diagnostics never expose provider keys, resumes, or full job descriptions.
+- Public deployments have documented rate-limit configuration.
+
+## Milestone 12 - Private account sync
+
+Status: Future
+
+Why it is later:
+
+- Authentication and cloud storage materially increase security, privacy, migration, and operational requirements.
+- The local-first workflow should be proven before sensitive career data is synchronized.
+
+Possible scope:
+
+- Optional authentication and encrypted server-side storage.
+- Sync history, tracker records, resume profiles, and preferences across devices.
+- Provide data export, retention controls, account deletion, and session management.
+- Keep AI provider credentials server-managed; never store user API keys in browser storage.
+
+Prerequisites:
+
+- A documented privacy and retention model.
+- Authorization tests for every stored resource.
+- Encryption, audit logging, backups, deletion workflows, and production rate limiting.
+
+## Smaller feature opportunities
+
+These can be delivered between larger milestones when they support the active milestone:
+
+- Saved job-search filters for history and tracker views.
+- Print and PDF-friendly layouts for analysis and interview preparation.
+- Keyboard shortcuts for analyze, copy, navigate tabs, and open detailed reviews.
+- Accessibility improvements including live generation status, skip links, and reduced-motion support.
+- A configurable skills taxonomy to merge equivalent names such as React.js and React.
+- Duplicate-job detection based on normalized company, title, and source URL.
+- Automatic follow-up message drafts based on application stage and elapsed time.
+- A user-editable personal evidence library for achievements, metrics, and project stories.
+
+## Recommended delivery order
+
+1. Interview preparation workspace.
+2. Application tracker.
+3. Resume version workspace.
+4. Analysis quality and cost controls.
+5. Private account sync only after the local-first product and privacy model are stable.
+
+The immediate next implementation should be Milestone 8, starting with the validated interview-preparation contract and evidence-grounded API response.
 
 ## Engineering guardrails
 
