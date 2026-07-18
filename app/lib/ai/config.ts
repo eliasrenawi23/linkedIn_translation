@@ -22,8 +22,8 @@ export const AI_PROVIDERS: Record<AiProvider, ProviderConfig> = {
   },
   anthropic: {
     id: "anthropic",
-    name: "Anthropic (Claude 3.5)",
-    model: "claude-3-5-sonnet-20241022",
+    name: "Anthropic (Claude Sonnet 5)",
+    model: "claude-sonnet-5",
     apiKeyEnvironmentVariable: "ANTHROPIC_API_KEY",
   },
 };

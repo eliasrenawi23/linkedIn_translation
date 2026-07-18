@@ -20,8 +20,8 @@ Build a focused application assistant around one repeatable workflow:
 | 3. Evidence matrix | Complete |
 | 4. Resume tailoring | Complete |
 | 5. Application package | Complete |
-| 6. History and comparison | Next |
-| 7. Multi-model review | Planned |
+| 6. History and comparison | Complete |
+| 7. Multi-model review | Next |
 
 ## Milestone 1 - Reliable job intake
 
@@ -129,16 +129,23 @@ Delivered:
 
 ## Milestone 6 - History and comparison
 
-Status: Next
+Status: Complete
 
-- Save recent analyses locally before adding accounts or a database.
-- Store job metadata, score, resume version, date, and favorite state.
-- Compare several jobs side by side.
-- Add export/import so local history is portable.
+Delivered:
+
+- Automatically save compact analysis summaries in browser localStorage.
+- Never store full resume or job-description bodies in history.
+- Store job title, company, source URL, score, recommendation, resume version, date, matching and missing skills, critical gaps, and favorite state.
+- Keep up to 30 recent entries using versioned, validated storage.
+- Add a dedicated History page with favorites and individual deletion.
+- Compare two or three selected jobs side by side.
+- Export portable, versioned JSON history files.
+- Validate and merge imported JSON history files.
+- Add regression tests for round trips, unsupported versions, invalid records, and compact storage.
 
 ## Milestone 7 - Multi-model review
 
-Status: Planned
+Status: Next
 
 - Run selected providers in parallel when explicitly requested.
 - Show agreements and meaningful disagreements.

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
 import { SchemaValidationError, validateApplicationPackage, validateJobMatchResult, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+import { JOB_HISTORY_STORAGE_KEY, createHistoryExport, loadJobHistory, parseHistoryImport, upsertJobHistory } from "../app/lib/job-history.ts";
 
 test("parseStructuredJson accepts plain and fenced JSON", () => {
   assert.deepEqual(parseStructuredJson('{"score": 10}'), { score: 10 });
@@ -129,4 +130,39 @@ test("application package validation rejects too few talking points", () => {
 
 test("application package validation rejects unexpected fields", () => {
   assert.throws(() => validateApplicationPackage({ ...validApplicationPackage, inventedClaim: "No" }), SchemaValidationError);
+});
+
+const historyEntry = {
+  id: "entry-1",
+  createdAt: "2026-07-18T12:00:00.000Z",
+  title: "Software Engineer",
+  company: "Example Company",
+  sourceUrl: "https://example.com/jobs/1",
+  score: 82,
+  recommendation: "Apply" as const,
+  resumeVersion: "Default resume",
+  matchingSkills: ["TypeScript"],
+  missingSkills: ["Kubernetes"],
+  criticalGaps: [],
+  favorite: false,
+};
+
+test("history export round-trips valid compact entries", () => {
+  assert.deepEqual(parseHistoryImport(createHistoryExport([historyEntry])), [historyEntry]);
+});
+
+test("history import rejects unsupported versions", () => {
+  assert.throws(() => parseHistoryImport({ version: 2, entries: [] }));
+});
+
+test("history storage saves compact summaries and ignores invalid data", () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+  };
+  upsertJobHistory(storage, historyEntry);
+  values.set(JOB_HISTORY_STORAGE_KEY, JSON.stringify([...loadJobHistory(storage), { score: 999 }]));
+  assert.deepEqual(loadJobHistory(storage), [historyEntry]);
+  assert.equal(values.get(JOB_HISTORY_STORAGE_KEY)?.includes("resumeText"), false);
 });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { DEFAULT_RESUME } from "./constants";
+import { upsertJobHistory } from "../lib/job-history";
 
 interface AnalysisResult {
   score: number;
@@ -49,6 +50,8 @@ export default function JobChecker() {
   const [jobUrl, setJobUrl] = useState("");
   const [isImportingJob, setIsImportingJob] = useState(false);
   const [importedJobSource, setImportedJobSource] = useState("");
+  const [importedJobTitle, setImportedJobTitle] = useState("");
+  const [importedJobCompany, setImportedJobCompany] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -137,6 +140,7 @@ export default function JobChecker() {
         });
 
         const data = await response.json();
+        console.log('Parse Resume response:', data);
 
         if (!response.ok) {
           throw new Error(data.error || 'Failed to parse the file');
@@ -144,6 +148,7 @@ export default function JobChecker() {
 
         setResumeText(data.text);
       } catch (err: unknown) {
+        console.error('Parse Resume error:', err);
         setError(err instanceof Error ? err.message : 'Failed to parse the uploaded file.');
         setResumeText("");
       } finally {
@@ -190,14 +195,33 @@ export default function JobChecker() {
       });
 
       const data = await response.json();
+      console.log('Check Job response:', data);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to analyze the job description");
       }
 
-      setResult(data);
+      const analysis = data as AnalysisResult;
+      setResult(analysis);
+      const firstLine = jobDescription.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "Untitled role";
+      const resumeVersion = resumeMode === 'default' ? 'Default resume' : resumeMode === 'upload' ? `Uploaded: ${uploadedFileName || 'resume file'}` : 'Pasted resume';
+      upsertJobHistory(window.localStorage, {
+        id: window.crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        title: importedJobTitle || firstLine.replace(/^job title:\s*/i, '').slice(0, 120),
+        company: importedJobCompany || 'Unknown company',
+        sourceUrl: importedJobSource,
+        score: analysis.score,
+        recommendation: analysis.recommendation,
+        resumeVersion,
+        matchingSkills: analysis.matchAnalysis.matchingSkills,
+        missingSkills: analysis.matchAnalysis.missingSkills,
+        criticalGaps: analysis.requirements.filter((item) => item.importance === 'must-have' && item.status === 'missing').map((item) => item.requirement),
+        favorite: false,
+      });
       setActiveTab('verdict');
     } catch (err: unknown) {
+      console.error('Check Job error:', err);
       setError(err instanceof Error ? err.message : "An error occurred during analysis.");
     } finally {
       setIsLoading(false);
@@ -237,9 +261,11 @@ export default function JobChecker() {
         }),
       });
       const data = await response.json();
+      console.log('Application Package response:', data);
       if (!response.ok) throw new Error(data.error || 'Could not generate the application package');
       setApplicationPackage(data);
     } catch (error: unknown) {
+      console.error('Application Package error:', error);
       setPackageError(error instanceof Error ? error.message : 'Could not generate the application package.');
     } finally {
       setIsGeneratingPackage(false);
@@ -260,11 +286,15 @@ export default function JobChecker() {
         body: JSON.stringify({ url: jobUrl }),
       });
       const data = await response.json();
+      console.log('Fetch Job response:', data);
       if (!response.ok) throw new Error(data.error || 'Failed to import the job page');
       setJobDescription(data.description);
       setImportedJobSource(data.sourceUrl);
+      setImportedJobTitle(data.title || "");
+      setImportedJobCompany(data.company || "");
       setResult(null);
     } catch (err: unknown) {
+      console.error('Fetch Job error:', err);
       setError(err instanceof Error ? err.message : 'Failed to import the job page.');
     } finally {
       setIsImportingJob(false);
@@ -466,6 +496,8 @@ export default function JobChecker() {
                     setJobDescription("");
                     setJobUrl("");
                     setImportedJobSource("");
+                    setImportedJobTitle("");
+                    setImportedJobCompany("");
                     setPastedResume("");
                     setUploadedFileName("");
                     if (resumeMode !== 'default') {

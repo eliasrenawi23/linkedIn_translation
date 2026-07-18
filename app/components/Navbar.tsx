@@ -18,7 +18,7 @@ export default function Navbar() {
         </h1>
       </div>
       
-      <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+      <nav className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
         <Link
           href="/"
           className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -38,6 +38,16 @@ export default function Navbar() {
           }`}
         >
           🎯 Job Match Analyzer
+        </Link>
+        <Link
+          href="/job-history"
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            pathname === "/job-history"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/50"
+          }`}
+        >
+          History
         </Link>
       </nav>
     </header>

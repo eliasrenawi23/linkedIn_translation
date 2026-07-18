@@ -4,11 +4,12 @@ import { AiError } from "./provider";
 import { SchemaValidationError } from "./schemas";
 
 export function aiRouteError(error: unknown, fallbackMessage: string): NextResponse {
+  console.error("Unexpected AI route error:", error);
+
   if (error instanceof InputError) return NextResponse.json({ error: error.message, code: "INVALID_INPUT" }, { status: 400 });
   if (error instanceof AiError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
   if (error instanceof SchemaValidationError) {
-    return NextResponse.json({ error: "The AI provider returned an invalid result. Please try again.", code: "AI_INVALID_RESPONSE" }, { status: 502 });
+    return NextResponse.json({ error: `Validation Error: ${error.message}`, code: "AI_INVALID_RESPONSE" }, { status: 502 });
   }
-  console.error("Unexpected AI route error", error instanceof Error ? error.name : typeof error);
-  return NextResponse.json({ error: fallbackMessage, code: "INTERNAL_ERROR" }, { status: 500 });
+  return NextResponse.json({ error: error instanceof Error ? error.message : fallbackMessage, code: "INTERNAL_ERROR" }, { status: 500 });
 }

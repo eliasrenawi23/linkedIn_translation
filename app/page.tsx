@@ -63,6 +63,7 @@ export default function Translator() {
       });
       
       const data = await response.json();
+      console.log('Translate response:', data);
       
       if (!response.ok) {
         throw new Error(data.error || "Failed to translate");
@@ -72,6 +73,7 @@ export default function Translator() {
       setTranslation(data.translation);
       setScore(data.score);
     } catch (err: unknown) {
+      console.error('Translate error:', err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsLoading(false);

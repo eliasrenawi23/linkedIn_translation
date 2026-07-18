@@ -182,6 +182,7 @@ Please analyze the resume against the job description and output only the valid 
       temperature: 0.3,
       maxTokens: 6144,
     });
+    console.log('result', result);
     return NextResponse.json(validateJobMatchResult(result));
 
   } catch (err: unknown) {

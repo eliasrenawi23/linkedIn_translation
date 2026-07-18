@@ -87,11 +87,10 @@ export async function generateStructured(options: GenerateOptions): Promise<unkn
   for (let attempt = 0; attempt <= AI_TRANSIENT_RETRIES; attempt += 1) {
     try {
       const content = await timeout(generateOnce(options, apiKey));
-      if (process.env.NODE_ENV !== "production") {
-        console.info(`[AI response:${options.provider}:attempt ${attempt + 1}]\n${content}`);
-      }
+      console.log(`[Raw AI Response from ${options.provider} (Attempt ${attempt + 1})]:\n${content}`);
       return parseStructuredJson(content);
     } catch (error) {
+      console.error(`Error during AI generation (attempt ${attempt + 1}):`, error);
       lastError = error instanceof StructuredJsonError
         ? new AiError("AI_INVALID_RESPONSE", "The AI provider returned malformed structured data.", 502)
         : error;
@@ -100,5 +99,6 @@ export async function generateStructured(options: GenerateOptions): Promise<unkn
   }
 
   if (lastError instanceof AiError) throw lastError;
-  throw new AiError("AI_UNAVAILABLE", "The AI provider is temporarily unavailable.", 503);
+  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new AiError("AI_UNAVAILABLE", `The AI provider is temporarily unavailable: ${errorMsg}`, 503);
 }
