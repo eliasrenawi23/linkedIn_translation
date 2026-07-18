@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { InputError, MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
+import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
+import { generateStructured } from '@/app/lib/ai/provider';
+import { validateJobMatchResult } from '@/app/lib/ai/schemas';
+import { aiRouteError } from '@/app/lib/ai/http';
 
 const SYSTEM_PROMPT = `
 You are a senior technical recruiter, hiring manager, ATS reviewer, and career coach.
@@ -112,12 +112,7 @@ export async function POST(req: Request) {
       day: 'numeric'
     });
 
-    let result_content = "";
-
-    if (provider === "openai") {
-      if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const prompt = `
+    const prompt = `
 Today's date is ${today}. Use this date to accurately calculate years of experience from dates listed in the resume (e.g., from April 2023 to present).
 
 Candidate's Resume:
@@ -132,99 +127,16 @@ ${job_description}
 
 Please analyze the resume against the job description and output only the valid JSON result.
 `;
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-      });
-      result_content = response.choices[0].message.content || "{}";
-
-    } else if (provider === "anthropic") {
-      if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const prompt = `
-Today's date is ${today}. Use this date to accurately calculate years of experience from dates listed in the resume (e.g., from April 2023 to present).
-
-Candidate's Resume:
-\"\"\"
-${resume}
-\"\"\"
-
-Job Description:
-\"\"\"
-${job_description}
-\"\"\"
-
-Please analyze the resume against the job description and output only the valid JSON result.
-`;
-      const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT + "\n\nYou MUST return ONLY valid JSON. Do not include markdown formatting or any other text.",
-        messages: [
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.3,
-      });
-      // @ts-expect-error type mismatches due to anthropic SDK versioning
-      result_content = response.content[0].text || "{}";
-
-    } else if (provider === "gemini") {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("GEMINI_API_KEY is not configured in the server environment variables.");
-      }
-
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
-
-      const prompt = `
-${SYSTEM_PROMPT}
-
-Today's date is ${today}. Use this date to accurately calculate years of experience from dates listed in the resume (e.g., from April 2023 to present).
-
-Candidate's Resume:
-\"\"\"
-${resume}
-\"\"\"
-
-Job Description:
-\"\"\"
-${job_description}
-\"\"\"
-
-Please analyze the resume against the job description and output only the valid JSON result.
-`;
-
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }]}],
-        generationConfig: {
-          temperature: 0.3,
-          responseMimeType: "application/json",
-        }
-      });
-
-      result_content = result.response.text().trim();
-    } else {
-      return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
-    }
-
-    // Clean up potential markdown formatting wrappers returned by the model
-    result_content = result_content.trim();
-    if (result_content.startsWith("```json")) result_content = result_content.substring(7);
-    if (result_content.startsWith("```")) result_content = result_content.substring(3);
-    if (result_content.endsWith("```")) result_content = result_content.slice(0, -3);
-
-    const result_json = JSON.parse(result_content.trim());
-
-    return NextResponse.json(result_json);
+    const result = await generateStructured({
+      provider,
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: prompt,
+      temperature: 0.3,
+      maxTokens: 4096,
+    });
+    return NextResponse.json(validateJobMatchResult(result));
 
   } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    console.error(`Error during job checking:`, error);
-    return NextResponse.json({ error: error.message || "An error occurred during analysis" }, { status: error instanceof InputError ? 400 : 500 });
+    return aiRouteError(err, "An error occurred during analysis.");
   }
 }

@@ -1,0 +1,64 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
+import { SchemaValidationError, validateJobMatchResult, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+
+test("parseStructuredJson accepts plain and fenced JSON", () => {
+  assert.deepEqual(parseStructuredJson('{"score": 10}'), { score: 10 });
+  assert.deepEqual(parseStructuredJson('```json\n{"score": 20}\n```'), { score: 20 });
+});
+
+test("parseStructuredJson extracts JSON surrounded by provider prose", () => {
+  assert.deepEqual(
+    parseStructuredJson('Here is the result:\n{"details":"A brace } inside a string","score": 80}\nHope this helps.'),
+    { details: "A brace } inside a string", score: 80 },
+  );
+});
+
+test("parseStructuredJson rejects truncated JSON", () => {
+  assert.throws(() => parseStructuredJson('{"score": 80'), StructuredJsonError);
+});
+
+test("parseStructuredJson rejects malformed data with a stable error", () => {
+  assert.throws(() => parseStructuredJson("not json"), StructuredJsonError);
+});
+
+test("translation validation normalizes whitespace", () => {
+  assert.deepEqual(validateTranslationResult({ headline: "  Core  ", translation: " Truth ", score: 55 }), {
+    headline: "Core",
+    translation: "Truth",
+    score: 55,
+  });
+});
+
+test("translation validation rejects invalid scores and extra fields", () => {
+  assert.throws(() => validateTranslationResult({ headline: "A", translation: "B", score: 101 }), SchemaValidationError);
+  assert.throws(() => validateTranslationResult({ headline: "A", translation: "B", score: 10, extra: true }), SchemaValidationError);
+});
+
+const validJobMatch = {
+  score: 75,
+  recommendation: "Apply",
+  matchAnalysis: {
+    matchingSkills: ["TypeScript"],
+    missingSkills: [],
+    experienceFit: "Relevant experience.",
+    cultureFit: "Evidence of ownership.",
+  },
+  pros: ["Strong core stack"],
+  cons: ["Limited domain evidence"],
+  details: "The core requirements are supported.",
+  resumeTips: ["Quantify project outcomes"],
+};
+
+test("job match validation accepts the documented contract", () => {
+  assert.deepEqual(validateJobMatchResult(validJobMatch), validJobMatch);
+});
+
+test("job match validation rejects unsupported recommendations", () => {
+  assert.throws(() => validateJobMatchResult({ ...validJobMatch, recommendation: "Maybe" }), SchemaValidationError);
+});
+
+test("job match validation rejects missing nested fields", () => {
+  assert.throws(() => validateJobMatchResult({ ...validJobMatch, matchAnalysis: { matchingSkills: [] } }), SchemaValidationError);
+});

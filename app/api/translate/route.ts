@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { InputError, MAX_POST_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
+import { MAX_POST_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
+import { generateStructured } from '@/app/lib/ai/provider';
+import { validateTranslationResult } from '@/app/lib/ai/schemas';
+import { aiRouteError } from '@/app/lib/ai/http';
 
 const SYSTEM_PROMPT = `
 You are a cynical, brutal translator of corporate LinkedIn posts. 
@@ -18,74 +18,16 @@ export async function POST(req: Request) {
     const post_text = readRequiredString((body as { post_text?: unknown })?.post_text, "Post text", MAX_POST_CHARS);
     const provider = readProvider((body as { provider?: unknown })?.provider);
 
-    let result_content = "";
-
-    if (provider === "openai") {
-      if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Please translate this LinkedIn post:\n\n${post_text}` }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7,
-      });
-      result_content = response.choices[0].message.content || "{}";
-
-    } else if (provider === "anthropic") {
-      if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT + "\n\nYou MUST return ONLY valid JSON. Do not include markdown formatting or any other text.",
-        messages: [
-          { role: "user", content: `Please translate this LinkedIn post:\n\n${post_text}` }
-        ],
-        temperature: 0.7,
-      });
-      // @ts-expect-error type mismatches due to anthropic SDK versioning
-      result_content = response.content[0].text || "{}";
-
-    } else if (provider === "gemini") {
-      if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      
-      const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
-      const prompt = `${SYSTEM_PROMPT}\n\nPlease translate this LinkedIn post and output only JSON:\n\n${post_text}`;
-      
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }]}],
-        generationConfig: {
-          temperature: 0.7,
-          responseMimeType: "application/json",
-        }
-      });
-      result_content = result.response.text();
-      
-    } else {
-      return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
-    }
-
-    // Clean up possible markdown wrappers
-    result_content = result_content.trim();
-    if (result_content.startsWith("```json")) result_content = result_content.substring(7);
-    if (result_content.startsWith("```")) result_content = result_content.substring(3);
-    if (result_content.endsWith("```")) result_content = result_content.slice(0, -3);
-
-    const result_json = JSON.parse(result_content.trim());
-
-    return NextResponse.json({
-      headline: result_json.headline || "",
-      translation: result_json.translation || "",
-      score: result_json.score || 0
+    const result = await generateStructured({
+      provider,
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: `Please translate this LinkedIn post:\n\n${post_text}`,
+      temperature: 0.7,
+      maxTokens: 1024,
     });
+    return NextResponse.json(validateTranslationResult(result));
 
   } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    console.error(`Error during translation:`, error);
-    return NextResponse.json({ error: error.message || "An error occurred" }, { status: error instanceof InputError ? 400 : 500 });
+    return aiRouteError(err, "An error occurred during translation.");
   }
 }

@@ -1,5 +1,7 @@
 # LinkedIn Translator and Job Checker Roadmap
 
+Last updated: July 18, 2026
+
 ## Product direction
 
 Build a focused application assistant around one repeatable workflow:
@@ -9,36 +11,68 @@ Build a focused application assistant around one repeatable workflow:
 3. Explain the match with evidence.
 4. Tailor application material without inventing experience.
 
-## Milestone 1 — Reliable job intake (implemented)
+## Progress
+
+| Milestone | Status |
+| --- | --- |
+| 1. Reliable job intake | Complete |
+| 2. Trustworthy structured analysis | Complete |
+| 3. Evidence matrix | Next |
+| 4. Resume tailoring | Planned |
+| 5. Application package | Planned |
+| 6. History and comparison | Planned |
+| 7. Multi-model review | Planned |
+
+## Milestone 1 - Reliable job intake
+
+Status: Complete
+
+Delivered:
 
 - Import public job pages by URL.
-- Extract useful page metadata and readable text.
-- Keep imported text editable and require user review before analysis.
+- Extract page metadata and readable text.
+- Keep imported text editable before analysis.
 - Reject local/private network URLs, non-HTTP protocols, redirect abuse, oversized responses, and non-HTML responses.
-- Apply request, text, and upload size limits to existing endpoints.
+- Apply request, text, and resume-upload size limits.
+- Correct the Turbopack project root so local dependencies resolve from this project.
+
+Known limitation:
+
+- Authenticated or bot-protected job sites may prevent importing. Users can paste the job description instead.
+
+## Milestone 2 - Trustworthy structured analysis
+
+Status: Complete
+
+Objective: Make AI results predictable, type-safe, provider-independent, and testable.
+
+Delivered:
+
+- Shared TypeScript contracts and strict runtime validators for translation and job-match results.
+- One adapter for OpenAI, Gemini, and Anthropic structured generation.
+- Central provider names, model identifiers, environment variables, timeout, and retry settings.
+- Shared parsing for plain and markdown-fenced JSON.
+- Stable public error codes for invalid input, missing configuration, timeouts, unavailable providers, and malformed responses.
+- A 30-second request timeout and one retry for transient provider failures.
+- Contract tests for JSON parsing, scores, recommendations, required fields, nested fields, and unexpected fields.
+- Passing targeted ESLint, seven automated tests, and the full TypeScript check.
 
 Acceptance criteria:
 
-- A public HTTP(S) job page can populate the job-description field.
-- A failed import produces a useful message without erasing existing text.
-- `localhost`, private IP ranges, credentials in URLs, and oversized pages are rejected.
-- Resume and job-analysis requests reject empty or unreasonably large inputs.
-
-## Milestone 2 — Trustworthy structured analysis
-
-- Move provider calls behind a shared adapter.
-- Define runtime schemas for translation and job-match responses.
-- Normalize scores and recommendations and reject malformed model responses.
-- Add provider timeouts, retry policy, and stable public error codes.
-- Add unit tests for validation and provider response parsing.
-
-Acceptance criteria:
-
-- Every successful API response matches its TypeScript contract.
+- Every successful API response matches its runtime schema and TypeScript contract.
 - Invalid model JSON never reaches the UI as a successful result.
-- Provider-specific code is not duplicated across feature routes.
+- Provider-specific request code is not duplicated across feature routes.
+- A provider timeout or malformed response produces a consistent, useful error.
+- Models and provider settings can be changed in one place.
+- Automated tests cover malformed JSON, missing fields, invalid scores, invalid recommendations, and provider failures.
 
-## Milestone 3 — Evidence matrix
+Suggested commit:
+
+`refactor: centralize and validate structured AI responses`
+
+## Milestone 3 - Evidence matrix
+
+Status: Next
 
 - Return each important job requirement with importance, resume evidence, and match status.
 - Separate must-have requirements from preferences.
@@ -50,7 +84,9 @@ Acceptance criteria:
 - Every major score deduction points to a visible requirement and evidence gap.
 - Users can understand the recommendation without relying on the numeric score alone.
 
-## Milestone 4 — Resume tailoring
+## Milestone 4 - Resume tailoring
+
+Status: Planned
 
 - Generate a role-specific summary, skill ordering, and bullet rewrites.
 - Only transform facts supported by the original resume.
@@ -61,22 +97,28 @@ Acceptance criteria:
 
 - Every suggested claim can be traced to original resume text.
 - Users can accept suggestions individually.
-- The feature explicitly marks unsupported keywords instead of inserting them.
+- Unsupported keywords are identified instead of silently inserted.
 
-## Milestone 5 — Application package
+## Milestone 5 - Application package
+
+Status: Planned
 
 - Generate a concise cover letter, recruiter message, connection note, and interview talking points.
 - Reuse the verified evidence matrix rather than analyzing from scratch.
 - Provide tone and length controls.
 
-## Milestone 6 — History and comparison
+## Milestone 6 - History and comparison
+
+Status: Planned
 
 - Save recent analyses locally before adding accounts or a database.
 - Store job metadata, score, resume version, date, and favorite state.
 - Compare several jobs side by side.
 - Add export/import so local history is portable.
 
-## Milestone 7 — Multi-model review
+## Milestone 7 - Multi-model review
+
+Status: Planned
 
 - Run selected providers in parallel when explicitly requested.
 - Show agreements and meaningful disagreements.
@@ -91,4 +133,4 @@ This is intentionally last because it increases cost and latency without improvi
 - Keep provider keys server-only.
 - Add deployment-level rate limiting before public launch.
 - Do not promise reliable LinkedIn scraping; authenticated or bot-protected pages should fall back to paste mode.
-- Verify current provider model identifiers through configuration rather than hard-coding them throughout the application.
+- Configure current provider model identifiers centrally rather than hard-coding them throughout the application.
