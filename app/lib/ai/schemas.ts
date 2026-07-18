@@ -5,6 +5,16 @@ export type TranslationResult = {
 };
 
 export type JobMatchRecommendation = "Apply" | "Apply with Reservations" | "Do Not Apply";
+export type RequirementImportance = "must-have" | "preferred";
+export type RequirementStatus = "match" | "partial" | "missing" | "unclear";
+
+export type RequirementEvidence = {
+  requirement: string;
+  importance: RequirementImportance;
+  status: RequirementStatus;
+  resumeEvidence: string;
+  explanation: string;
+};
 
 export type JobMatchResult = {
   score: number;
@@ -15,6 +25,7 @@ export type JobMatchResult = {
     experienceFit: string;
     cultureFit: string;
   };
+  requirements: RequirementEvidence[];
   pros: string[];
   cons: string[];
   details: string;
@@ -60,6 +71,33 @@ function stringArray(value: unknown, path: string, maxItems = 12): string[] {
   return value.map((item, index) => string(item, `${path}[${index}]`));
 }
 
+function requirementArray(value: unknown): RequirementEvidence[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 20) {
+    throw new SchemaValidationError("requirements must contain between 1 and 20 entries");
+  }
+
+  return value.map((entry, index) => {
+    const path = `requirements[${index}]`;
+    const requirement = object(entry, path);
+    exactKeys(requirement, ["requirement", "importance", "status", "resumeEvidence", "explanation"], path);
+    const importance = string(requirement.importance, `${path}.importance`);
+    const status = string(requirement.status, `${path}.status`);
+    if (importance !== "must-have" && importance !== "preferred") {
+      throw new SchemaValidationError(`${path}.importance is invalid`);
+    }
+    if (status !== "match" && status !== "partial" && status !== "missing" && status !== "unclear") {
+      throw new SchemaValidationError(`${path}.status is invalid`);
+    }
+    return {
+      requirement: string(requirement.requirement, `${path}.requirement`),
+      importance,
+      status,
+      resumeEvidence: string(requirement.resumeEvidence, `${path}.resumeEvidence`),
+      explanation: string(requirement.explanation, `${path}.explanation`),
+    };
+  });
+}
+
 export function validateTranslationResult(value: unknown): TranslationResult {
   const result = object(value, "translation result");
   exactKeys(result, ["headline", "translation", "score"], "translation result");
@@ -72,7 +110,7 @@ export function validateTranslationResult(value: unknown): TranslationResult {
 
 export function validateJobMatchResult(value: unknown): JobMatchResult {
   const result = object(value, "job match result");
-  exactKeys(result, ["score", "recommendation", "matchAnalysis", "pros", "cons", "details", "resumeTips"], "job match result");
+  exactKeys(result, ["score", "recommendation", "matchAnalysis", "requirements", "pros", "cons", "details", "resumeTips"], "job match result");
   const analysis = object(result.matchAnalysis, "matchAnalysis");
   exactKeys(analysis, ["matchingSkills", "missingSkills", "experienceFit", "cultureFit"], "matchAnalysis");
 
@@ -90,6 +128,7 @@ export function validateJobMatchResult(value: unknown): JobMatchResult {
       experienceFit: string(analysis.experienceFit, "matchAnalysis.experienceFit"),
       cultureFit: string(analysis.cultureFit, "matchAnalysis.cultureFit"),
     },
+    requirements: requirementArray(result.requirements),
     pros: stringArray(result.pros, "pros"),
     cons: stringArray(result.cons, "cons"),
     details: string(result.details, "details"),

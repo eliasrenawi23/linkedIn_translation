@@ -49,7 +49,7 @@ Do not include explanations outside the JSON.
 Do not include comments inside the JSON.
 Do not include trailing commas.
 All strings must use double quotes.
-All arrays must contain only strings.
+All strings must use double quotes, including strings inside objects and arrays.
 The "score" must be an integer from 0 to 100.
 The "recommendation" must be exactly one of:
 - "Apply"
@@ -71,6 +71,15 @@ The JSON object must have exactly this structure and no extra top-level keys:
     "experienceFit": "1-2 sentences explaining whether the candidate's experience level, role history, responsibilities, and project scope fit the job.",
     "cultureFit": "1-2 sentences explaining alignment with teamwork, ownership, communication, learning, leadership, startup/corporate environment, or other culture signals from the job description."
   },
+  "requirements": [
+    {
+      "requirement": "One explicit or strongly implied requirement from the job description",
+      "importance": "must-have",
+      "status": "match",
+      "resumeEvidence": "A concise quote or specific fact from the resume, or 'No evidence found in the resume'",
+      "explanation": "A concise explanation of why the evidence supports this status"
+    }
+  ],
   "pros": [
     "Specific evidence-based reason why the candidate fits the role"
   ],
@@ -89,6 +98,15 @@ Content requirements:
 - "pros" should include 2-4 items.
 - "cons" should include 2-4 items.
 - "resumeTips" should include 2-4 items.
+- "requirements" should include the 5-12 most important distinct requirements when possible.
+- "importance" must be exactly "must-have" or "preferred".
+- "status" must be exactly "match", "partial", "missing", or "unclear".
+- Use "match" only for direct or strong resume evidence.
+- Use "partial" when some but not all of the requirement is evidenced.
+- Use "missing" when the resume provides no supporting evidence.
+- Use "unclear" when the resume language is too ambiguous to judge fairly.
+- Every must-have requirement that affects the score must appear in "requirements".
+- Never invent resume evidence. For missing evidence, write exactly "No evidence found in the resume".
 - If there are no meaningful missing skills, return an empty array for "missingSkills".
 - If there are no meaningful cons, include minor improvement areas rather than inventing serious gaps.
 - Keep each array item concise but specific.

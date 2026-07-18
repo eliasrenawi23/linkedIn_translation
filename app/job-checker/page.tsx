@@ -13,6 +13,13 @@ interface AnalysisResult {
     experienceFit: string;
     cultureFit: string;
   };
+  requirements: Array<{
+    requirement: string;
+    importance: 'must-have' | 'preferred';
+    status: 'match' | 'partial' | 'missing' | 'unclear';
+    resumeEvidence: string;
+    explanation: string;
+  }>;
   pros: string[];
   cons: string[];
   details: string;
@@ -31,7 +38,7 @@ export default function JobChecker() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'verdict' | 'proscons' | 'skills' | 'tips'>('verdict');
+  const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips'>('verdict');
   const [provider, setProvider] = useState("gemini");
   const [availableModels, setAvailableModels] = useState<{id: string, name: string, available: boolean}[]>([]);
 
@@ -512,7 +519,7 @@ export default function JobChecker() {
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex border-b border-gray-200 px-4 bg-gray-50">
+                <div className="flex border-b border-gray-200 px-4 bg-gray-50 overflow-x-auto">
                   <button
                     onClick={() => setActiveTab('verdict')}
                     className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 outline-none cursor-pointer ${
@@ -520,6 +527,14 @@ export default function JobChecker() {
                     }`}
                   >
                     📝 Verdict
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('evidence')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'evidence' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    Evidence ({result.requirements.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('proscons')}
@@ -564,6 +579,55 @@ export default function JobChecker() {
                           📌 &quot;{result.matchAnalysis.cultureFit}&quot;
                         </p>
                       </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'evidence' && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <div>
+                          <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">Requirement Evidence</h4>
+                          <p className="text-xs text-gray-500 mt-1">Each conclusion is tied to information found in your resume.</p>
+                        </div>
+                        <span className="text-xs text-gray-500 shrink-0">
+                          {result.requirements.filter((item) => item.status === 'match').length}/{result.requirements.length} matched
+                        </span>
+                      </div>
+                      {result.requirements.map((item, idx) => {
+                        const statusStyles = {
+                          match: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          partial: "bg-amber-50 text-amber-700 border-amber-200",
+                          missing: "bg-rose-50 text-rose-700 border-rose-200",
+                          unclear: "bg-slate-100 text-slate-600 border-slate-200",
+                        };
+                        const isCriticalGap = item.importance === 'must-have' && item.status === 'missing';
+                        return (
+                          <article
+                            key={`${item.requirement}-${idx}`}
+                            className={`rounded-xl border p-4 ${isCriticalGap ? "border-rose-300 bg-rose-50/30 ring-1 ring-rose-100" : "border-slate-200 bg-white"}`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                              <h5 className="text-sm font-semibold text-slate-800 leading-snug">{item.requirement}</h5>
+                              <div className="flex gap-1.5 shrink-0">
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${item.importance === 'must-have' ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                                  {item.importance}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${statusStyles[item.status]}`}>
+                                  {item.status}
+                                </span>
+                              </div>
+                            </div>
+                            {isCriticalGap && <p className="text-xs font-semibold text-rose-700 mt-2">Critical gap: a must-have requirement has no supporting evidence.</p>}
+                            <div className="mt-3 grid grid-cols-1 gap-2">
+                              <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Resume evidence</span>
+                                <p className="text-xs text-slate-700 leading-relaxed">{item.resumeEvidence}</p>
+                              </div>
+                              <p className="text-xs text-slate-500 leading-relaxed">{item.explanation}</p>
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
                   )}
 

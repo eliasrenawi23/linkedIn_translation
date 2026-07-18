@@ -45,6 +45,13 @@ const validJobMatch = {
     experienceFit: "Relevant experience.",
     cultureFit: "Evidence of ownership.",
   },
+  requirements: [{
+    requirement: "TypeScript",
+    importance: "must-have",
+    status: "match",
+    resumeEvidence: "Built TypeScript services.",
+    explanation: "The resume contains direct evidence.",
+  }],
   pros: ["Strong core stack"],
   cons: ["Limited domain evidence"],
   details: "The core requirements are supported.",
@@ -61,4 +68,15 @@ test("job match validation rejects unsupported recommendations", () => {
 
 test("job match validation rejects missing nested fields", () => {
   assert.throws(() => validateJobMatchResult({ ...validJobMatch, matchAnalysis: { matchingSkills: [] } }), SchemaValidationError);
+});
+
+test("job match validation rejects invalid evidence status", () => {
+  assert.throws(() => validateJobMatchResult({
+    ...validJobMatch,
+    requirements: [{ ...validJobMatch.requirements[0], status: "mostly" }],
+  }), SchemaValidationError);
+});
+
+test("job match validation requires at least one evidence entry", () => {
+  assert.throws(() => validateJobMatchResult({ ...validJobMatch, requirements: [] }), SchemaValidationError);
 });

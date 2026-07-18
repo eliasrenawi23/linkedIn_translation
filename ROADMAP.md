@@ -17,8 +17,8 @@ Build a focused application assistant around one repeatable workflow:
 | --- | --- |
 | 1. Reliable job intake | Complete |
 | 2. Trustworthy structured analysis | Complete |
-| 3. Evidence matrix | Next |
-| 4. Resume tailoring | Planned |
+| 3. Evidence matrix | Complete |
+| 4. Resume tailoring | Next |
 | 5. Application package | Planned |
 | 6. History and comparison | Planned |
 | 7. Multi-model review | Planned |
@@ -72,12 +72,18 @@ Suggested commit:
 
 ## Milestone 3 - Evidence matrix
 
-Status: Next
+Status: Complete
 
-- Return each important job requirement with importance, resume evidence, and match status.
+Delivered:
+
+- Return the most important job requirements with importance, resume evidence, match status, and explanation.
 - Separate must-have requirements from preferences.
-- Display the matrix alongside the overall score.
-- Flag claims that need confirmation from the candidate.
+- Classify each requirement as match, partial, missing, or unclear.
+- Validate all evidence entries with a strict runtime schema.
+- Display a dedicated Evidence tab alongside the overall score.
+- Highlight missing must-have requirements as critical gaps.
+- Explicitly represent absent evidence instead of inventing candidate experience.
+- Cover invalid statuses and empty evidence matrices with regression tests.
 
 Acceptance criteria:
 
@@ -86,7 +92,7 @@ Acceptance criteria:
 
 ## Milestone 4 - Resume tailoring
 
-Status: Planned
+Status: Next
 
 - Generate a role-specific summary, skill ordering, and bullet rewrites.
 - Only transform facts supported by the original resume.
