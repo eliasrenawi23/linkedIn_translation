@@ -25,6 +25,9 @@ export default function JobChecker() {
   const [pastedResume, setPastedResume] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
+  const [isImportingJob, setIsImportingJob] = useState(false);
+  const [importedJobSource, setImportedJobSource] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -166,6 +169,31 @@ export default function JobChecker() {
       setError(err instanceof Error ? err.message : "An error occurred during analysis.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleImportJob = async () => {
+    if (!jobUrl.trim()) {
+      setError("Enter a public job-post URL.");
+      return;
+    }
+    setIsImportingJob(true);
+    setError("");
+    try {
+      const response = await fetch('/api/fetch-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: jobUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to import the job page');
+      setJobDescription(data.description);
+      setImportedJobSource(data.sourceUrl);
+      setResult(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to import the job page.');
+    } finally {
+      setIsImportingJob(false);
     }
   };
 
@@ -323,9 +351,33 @@ export default function JobChecker() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[280px]">
             <div className="border-b border-gray-100 px-5 py-4 bg-gray-50">
               <h2 className="text-base font-semibold text-gray-800">Job Description</h2>
-              <p className="text-xs text-gray-500">Paste the details of the job you are targeting</p>
+              <p className="text-xs text-gray-500">Import a public job page or paste its details</p>
             </div>
             <div className="p-5 flex-1 flex flex-col">
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <input
+                  type="url"
+                  value={jobUrl}
+                  onChange={(e) => setJobUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleImportJob(); } }}
+                  placeholder="https://company.com/careers/job..."
+                  aria-label="Public job-post URL"
+                  className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg outline-none text-sm text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleImportJob}
+                  disabled={isImportingJob || !jobUrl.trim()}
+                  className="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isImportingJob ? "Importing..." : "Import URL"}
+                </button>
+              </div>
+              {importedJobSource && (
+                <p className="text-xs text-emerald-700 mb-3 break-all">
+                  Imported successfully. Review and edit the text before analysis.
+                </p>
+              )}
               <textarea
                 className="flex-1 w-full p-4 border border-gray-200 rounded-lg outline-none text-sm text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 bg-white resize-none min-h-[160px]"
                 placeholder="Paste responsibilities, requirements, technology stack..."
@@ -338,6 +390,8 @@ export default function JobChecker() {
                 <button
                   onClick={() => {
                     setJobDescription("");
+                    setJobUrl("");
+                    setImportedJobSource("");
                     setPastedResume("");
                     setUploadedFileName("");
                     if (resumeMode !== 'default') {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { InputError, MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
 
 const SYSTEM_PROMPT = `
 You are a senior technical recruiter, hiring manager, ATS reviewer, and career coach.
@@ -100,15 +101,10 @@ Return the JSON object only.
 
 export async function POST(req: Request) {
   try {
-    const { resume, job_description, provider = "gemini" } = await req.json();
-
-    if (!resume) {
-      return NextResponse.json({ error: "Resume text is required" }, { status: 400 });
-    }
-
-    if (!job_description) {
-      return NextResponse.json({ error: "Job description is required" }, { status: 400 });
-    }
+    const body: unknown = await req.json();
+    const resume = readRequiredString((body as { resume?: unknown })?.resume, "Resume text", MAX_RESUME_CHARS);
+    const job_description = readRequiredString((body as { job_description?: unknown })?.job_description, "Job description", MAX_JOB_DESCRIPTION_CHARS);
+    const provider = readProvider((body as { provider?: unknown })?.provider);
 
     const today = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
@@ -229,6 +225,6 @@ Please analyze the resume against the job description and output only the valid 
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error(`Error during job checking:`, error);
-    return NextResponse.json({ error: error.message || "An error occurred during analysis" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "An error occurred during analysis" }, { status: error instanceof InputError ? 400 : 500 });
   }
 }

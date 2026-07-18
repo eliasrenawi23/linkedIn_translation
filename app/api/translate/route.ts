@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { InputError, MAX_POST_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
 
 const SYSTEM_PROMPT = `
 You are a cynical, brutal translator of corporate LinkedIn posts. 
@@ -13,11 +14,9 @@ Return a JSON object with exactly three keys:
 
 export async function POST(req: Request) {
   try {
-    const { post_text, provider = "gemini" } = await req.json();
-
-    if (!post_text) {
-      return NextResponse.json({ error: "post_text is required" }, { status: 400 });
-    }
+    const body: unknown = await req.json();
+    const post_text = readRequiredString((body as { post_text?: unknown })?.post_text, "Post text", MAX_POST_CHARS);
+    const provider = readProvider((body as { provider?: unknown })?.provider);
 
     let result_content = "";
 
@@ -87,6 +86,6 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error(`Error during translation:`, error);
-    return NextResponse.json({ error: error.message || "An error occurred" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "An error occurred" }, { status: error instanceof InputError ? 400 : 500 });
   }
 }

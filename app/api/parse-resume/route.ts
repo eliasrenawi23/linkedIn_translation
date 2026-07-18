@@ -3,6 +3,7 @@ import { pathToFileURL } from 'url';
 import path from 'path';
 import { PDFParse, VerbosityLevel } from 'pdf-parse';
 import mammoth from 'mammoth';
+import { MAX_RESUME_CHARS, MAX_RESUME_FILE_BYTES } from '@/app/lib/input-validation';
 
 // Helper: extract all text from a PDF buffer using pdf-parse
 async function extractPdfText(buffer: Buffer): Promise<string> {
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    if (file.size > MAX_RESUME_FILE_BYTES) {
+      return NextResponse.json({ error: 'Resume file is too large. Maximum size is 8 MB.' }, { status: 413 });
+    }
+
     const fileName = file.name.toLowerCase();
     const buffer = Buffer.from(await file.arrayBuffer());
     let text = '';
@@ -53,6 +58,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: 'Could not extract any text from the uploaded file. The file may be image-based or empty.' },
         { status: 400 }
+      );
+    }
+
+    if (text.length > MAX_RESUME_CHARS) {
+      return NextResponse.json(
+        { error: `Extracted resume is too long. Maximum length is ${MAX_RESUME_CHARS.toLocaleString()} characters.` },
+        { status: 413 }
       );
     }
 
