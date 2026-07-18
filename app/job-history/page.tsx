@@ -46,17 +46,18 @@ export default function JobHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="min-h-screen text-slate-800">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-slate-200 pb-5">
+      <main className="app-container app-main flex flex-col gap-6">
+        <div className="page-intro">
           <div>
-            <h2 className="text-2xl font-extrabold">Job Analysis History</h2>
-            <p className="text-sm text-slate-500 mt-1">Stored only in this browser. Resume and job-description bodies are not saved.</p>
+            <span className="page-kicker"><span>◷</span> Local workspace</span>
+            <h2 className="page-title">Job Analysis History</h2>
+            <p className="page-description">Stored only in this browser. Resume and job-description bodies are never saved.</p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={exportHistory} disabled={!entries.length} className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50">Export JSON</button>
-            <label className="relative px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold cursor-pointer">
+          <div className="flex gap-2 sm:justify-end">
+            <button type="button" onClick={exportHistory} disabled={!entries.length} className="app-control px-4 text-sm font-semibold text-slate-700 disabled:opacity-50">Export JSON</button>
+            <label className="app-primary-button relative flex cursor-pointer items-center px-4 text-sm">
               Import JSON
               <input type="file" accept="application/json,.json" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(event) => void importHistory(event.target.files?.[0])} />
             </label>
@@ -66,11 +67,11 @@ export default function JobHistoryPage() {
         {message && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">{message}</div>}
 
         {compared.length >= 2 && (
-          <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100"><h3 className="font-bold">Comparison</h3></div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[650px] text-sm">
-                <thead><tr className="bg-slate-50"><th className="text-left p-3 text-slate-500">Metric</th>{compared.map((entry) => <th key={entry.id} className="text-left p-3">{entry.title}<span className="block text-xs font-normal text-slate-500">{entry.company}</span></th>)}</tr></thead>
+          <section className="app-surface">
+            <div className="app-section-header px-5 py-4"><h3 className="font-bold">Comparison</h3></div>
+            <div className="overflow-hidden">
+              <table className="comparison-table w-full table-fixed text-xs sm:text-sm">
+                <thead><tr className="bg-slate-50"><th className="w-20 break-words p-2 text-left text-slate-500 sm:w-32 sm:p-3">Metric</th>{compared.map((entry) => <th key={entry.id} className="break-words p-2 text-left sm:p-3">{entry.title}<span className="block break-words text-[10px] font-normal text-slate-500 sm:text-xs">{entry.company}</span></th>)}</tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   <tr><td className="p-3 font-semibold">Score</td>{compared.map((entry) => <td key={entry.id} className="p-3 text-lg font-bold text-blue-600">{entry.score}%</td>)}</tr>
                   <tr><td className="p-3 font-semibold">Recommendation</td>{compared.map((entry) => <td key={entry.id} className="p-3">{entry.recommendation}</td>)}</tr>
@@ -87,7 +88,7 @@ export default function JobHistoryPage() {
         {entries.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {entries.map((entry) => (
-              <article key={entry.id} className={`bg-white rounded-xl border p-5 shadow-sm ${selected.includes(entry.id) ? "border-blue-400 ring-2 ring-blue-100" : "border-slate-200"}`}>
+              <article key={entry.id} className={`app-surface p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg ${selected.includes(entry.id) ? "border-blue-400 ring-2 ring-blue-100" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div><h3 className="font-bold text-slate-800">{entry.title}</h3><p className="text-xs text-slate-500 mt-0.5">{entry.company}</p></div>
                   <button type="button" onClick={() => toggleFavorite(entry.id)} className={`text-xl ${entry.favorite ? "text-amber-400" : "text-slate-300"}`} aria-label={entry.favorite ? "Remove favorite" : "Add favorite"}>★</button>
@@ -102,7 +103,7 @@ export default function JobHistoryPage() {
               </article>
             ))}
           </div>
-        ) : <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500"><h3 className="font-semibold text-slate-700">No saved analyses yet</h3><p className="text-sm mt-1">Complete a job analysis and it will appear here automatically.</p></div>}
+        ) : <div className="app-surface app-empty-state flex min-h-60 flex-col items-center justify-center p-8 text-center text-slate-500"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-2xl text-blue-700">◷</div><h3 className="font-semibold text-slate-800">No saved analyses yet</h3><p className="text-sm mt-1 max-w-sm leading-relaxed">Complete a job analysis and it will appear here automatically for comparison.</p></div>}
       </main>
     </div>
   );

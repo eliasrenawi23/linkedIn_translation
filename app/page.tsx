@@ -87,40 +87,41 @@ export default function Translator() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-800 font-sans flex flex-col relative overflow-hidden">
-      {/* Background Ambient Glows */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
-      <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-indigo-400/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
-
+    <div className="min-h-screen font-sans flex flex-col">
       <Navbar />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+      <main className="app-container app-main flex flex-1 flex-col gap-7">
         
         {/* Page Header */}
-        <div className="text-center lg:text-left mb-2">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center justify-center lg:justify-start gap-2.5">
-            <span>🤖</span> Corporate Bullshit Translator
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 max-w-xl">
+        <div className="page-intro">
+          <div>
+            <span className="page-kicker"><span>⌁</span> Signal decoder</span>
+            <h2 className="page-title">Corporate Bullshit Translator</h2>
+            <p className="page-description">
             Translate corporate jargon, synergistic speeches, and exaggerated LinkedIn posts into their honest, brutal truths.
-          </p>
+            </p>
+          </div>
+          <div className="hidden rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-right sm:block">
+            <span className="block text-[0.65rem] font-extrabold uppercase tracking-widest text-blue-500">Output</span>
+            <span className="text-sm font-semibold text-blue-900">Clarity over corporate noise</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch min-h-[500px]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-stretch min-h-[520px]">
           
           {/* Left Panel - Input */}
-          <div className="flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-md shadow-slate-100/50 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all duration-300">
-            <div className="border-b border-slate-100 px-5 py-4 bg-slate-50/50 flex justify-between items-center gap-3">
+          <div className="app-surface flex flex-col focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100/60 transition-all duration-300">
+            <div className="app-section-header px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
                 <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Corporate LinkedIn</h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
                 <select 
                   value={provider}
                   onChange={(e) => setProvider(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg text-slate-600 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 py-1.5 px-3 bg-white hover:bg-slate-50 transition-colors cursor-pointer font-medium"
+                  className="app-control min-w-0 flex-1 cursor-pointer px-3 text-sm font-semibold sm:min-w-64"
                 >
                   {availableModels.length > 0 ? (
                     availableModels.map((model) => (
@@ -134,7 +135,7 @@ export default function Translator() {
                 </select>
                 <button 
                   onClick={() => setIsModalOpen(true)}
-                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-sm"
+                  className="app-control flex h-[2.65rem] w-[2.65rem] shrink-0 cursor-pointer items-center justify-center text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                   title="Model Settings"
                 >
                   ℹ️
@@ -143,7 +144,7 @@ export default function Translator() {
             </div>
             <div className="flex-1 relative min-h-[250px] lg:min-h-auto">
               <textarea
-                className="w-full h-full p-5 resize-none outline-none text-lg leading-relaxed text-slate-800 placeholder-slate-400 bg-transparent min-h-[250px]"
+                className="w-full h-full p-5 sm:p-6 resize-none outline-none text-base sm:text-lg leading-8 text-slate-800 placeholder-slate-400 bg-transparent min-h-[280px]"
                 placeholder="Paste your synergistic paradigm shift here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -167,7 +168,7 @@ export default function Translator() {
               <button
                 onClick={handleTranslate}
                 disabled={isLoading || !inputText.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-blue-100 cursor-pointer"
+                className="app-primary-button px-6 text-sm flex items-center gap-2 cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -187,8 +188,8 @@ export default function Translator() {
           </div>
 
           {/* Right Panel - Output */}
-          <div className="flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-md shadow-slate-100/50 overflow-hidden relative">
-            <div className="border-b border-slate-100 px-5 py-4 bg-slate-50/50 flex justify-between items-center shrink-0">
+          <div className="app-surface flex flex-col relative">
+            <div className="app-section-header px-5 py-4 flex justify-between items-center shrink-0">
               <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Brutal Truth</h2>
               {score !== null && (
                 <div className={`px-3 py-1 rounded-full text-xs font-bold border ${getScoreColor(score)}`}>
@@ -277,7 +278,7 @@ export default function Translator() {
                   )}
                 </div>
               ) : (
-                <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-center text-slate-400">
+                <div className="app-empty-state h-full min-h-[280px] flex flex-col items-center justify-center text-center text-slate-400 px-6">
                   <span className="text-5xl mb-4">🔮</span>
                   <h3 className="text-base font-semibold text-slate-800">Ready for Translation</h3>
                   <p className="text-xs text-slate-500 max-w-xs mt-1 leading-relaxed">
