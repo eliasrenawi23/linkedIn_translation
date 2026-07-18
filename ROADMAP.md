@@ -21,7 +21,7 @@ Build a focused application assistant around one repeatable workflow:
 | 4. Resume tailoring | Complete |
 | 5. Application package | Complete |
 | 6. History and comparison | Complete |
-| 7. Multi-model review | Next |
+| 7. Multi-model review | Complete |
 
 ## Milestone 1 - Reliable job intake
 
@@ -145,13 +145,23 @@ Delivered:
 
 ## Milestone 7 - Multi-model review
 
-Status: Next
+Status: Complete
 
-- Run selected providers in parallel when explicitly requested.
-- Show agreements and meaningful disagreements.
-- Track latency and estimated cost.
+Delivered:
 
-This is intentionally last because it increases cost and latency without improving the core workflow as much as reliable intake, evidence, and tailoring.
+- Run two or three configured providers in parallel only when explicitly requested.
+- Use a compact comparison contract so the feature does not generate three full tailoring packages.
+- Preserve the primary analysis rather than replacing it with an averaged result.
+- Show each provider's score, recommendation, summary, matching skills, critical gaps, and latency.
+- Compute deterministic average score, score spread, recommendation agreement, majority consensus, and shared findings.
+- Preserve successful reviews when another provider fails and display partial failures clearly.
+- Reject duplicate selections and require two or three distinct providers.
+- Prevent comparisons after the resume or job description changes until the primary analysis is rerun.
+- Disclose that every selected model creates an additional paid request; exact cost remains unavailable unless provider pricing and token usage are configured reliably.
+- Disable raw comparison-response logging because it may contain resume-derived information.
+- Add regression tests for review validation, score spread, shared findings, mixed outcomes, and unanimous recommendations.
+
+This remains opt-in because it increases cost and latency. The core single-model workflow remains the default.
 
 ## Engineering guardrails
 

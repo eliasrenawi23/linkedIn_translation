@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
 import { generateStructured } from '@/app/lib/ai/provider';
 import { validateJobMatchResult } from '@/app/lib/ai/schemas';
-import { aiRouteError } from '@/app/lib/ai/http';
+import { aiRouteError, validateAiOutput } from '@/app/lib/ai/http';
 
 const SYSTEM_PROMPT = `
 You are a senior technical recruiter, hiring manager, ATS reviewer, and career coach.
@@ -183,7 +183,7 @@ Please analyze the resume against the job description and output only the valid 
       maxTokens: 6144,
     });
     console.log('result', result);
-    return NextResponse.json(validateJobMatchResult(result));
+    return NextResponse.json(validateAiOutput(result, validateJobMatchResult));
 
   } catch (err: unknown) {
     return aiRouteError(err, "An error occurred during analysis.");

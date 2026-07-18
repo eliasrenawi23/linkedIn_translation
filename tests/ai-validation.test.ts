@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
-import { SchemaValidationError, validateApplicationPackage, validateJobMatchResult, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+import { SchemaValidationError, aggregateModelReviews, validateApplicationPackage, validateJobMatchResult, validateModelReview, validateTranslationResult } from "../app/lib/ai/schemas.ts";
 import { JOB_HISTORY_STORAGE_KEY, createHistoryExport, loadJobHistory, parseHistoryImport, upsertJobHistory } from "../app/lib/job-history.ts";
 
 test("parseStructuredJson accepts plain and fenced JSON", () => {
@@ -165,4 +165,41 @@ test("history storage saves compact summaries and ignores invalid data", () => {
   values.set(JOB_HISTORY_STORAGE_KEY, JSON.stringify([...loadJobHistory(storage), { score: 999 }]));
   assert.deepEqual(loadJobHistory(storage), [historyEntry]);
   assert.equal(values.get(JOB_HISTORY_STORAGE_KEY)?.includes("resumeText"), false);
+});
+
+const geminiReview = validateModelReview({
+  score: 80,
+  recommendation: "Apply",
+  matchingSkills: ["TypeScript", "React"],
+  missingSkills: ["Kubernetes"],
+  criticalGaps: [],
+  summary: "Strong core match.",
+}, "gemini", 1200);
+
+const openAiReview = validateModelReview({
+  score: 70,
+  recommendation: "Apply with Reservations",
+  matchingSkills: ["typescript", "Node.js"],
+  missingSkills: ["kubernetes"],
+  criticalGaps: ["Cloud certification"],
+  summary: "A meaningful gap remains.",
+}, "openai", 900);
+
+test("model review validation rejects invalid fields", () => {
+  assert.throws(() => validateModelReview({ score: 105 }, "gemini", 10), SchemaValidationError);
+});
+
+test("model consensus calculates spread and shared findings", () => {
+  const consensus = aggregateModelReviews([geminiReview, openAiReview]);
+  assert.equal(consensus.averageScore, 75);
+  assert.equal(consensus.scoreSpread, 10);
+  assert.equal(consensus.consensusRecommendation, "Mixed");
+  assert.deepEqual(consensus.sharedMatchingSkills, ["TypeScript"]);
+  assert.deepEqual(consensus.sharedMissingSkills, ["Kubernetes"]);
+});
+
+test("model consensus reports unanimous recommendation", () => {
+  const consensus = aggregateModelReviews([geminiReview, { ...openAiReview, recommendation: "Apply", score: 78 }]);
+  assert.equal(consensus.recommendationAgreement, true);
+  assert.equal(consensus.consensusRecommendation, "Apply");
 });

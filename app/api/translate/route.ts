@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { MAX_POST_CHARS, readProvider, readRequiredString } from '@/app/lib/input-validation';
 import { generateStructured } from '@/app/lib/ai/provider';
 import { validateTranslationResult } from '@/app/lib/ai/schemas';
-import { aiRouteError } from '@/app/lib/ai/http';
+import { aiRouteError, validateAiOutput } from '@/app/lib/ai/http';
 
 const SYSTEM_PROMPT = `
 You are a cynical, brutal translator of corporate LinkedIn posts. 
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       temperature: 0.7,
       maxTokens: 1024,
     });
-    return NextResponse.json(validateTranslationResult(result));
+    return NextResponse.json(validateAiOutput(result, validateTranslationResult));
 
   } catch (err: unknown) {
     return aiRouteError(err, "An error occurred during translation.");

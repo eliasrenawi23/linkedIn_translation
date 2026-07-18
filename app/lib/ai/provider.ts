@@ -4,17 +4,19 @@ import OpenAI from "openai";
 import { AI_PROVIDERS, AI_REQUEST_TIMEOUT_MS, AI_TRANSIENT_RETRIES, getProviderApiKey, type AiProvider } from "./config";
 import { parseStructuredJson, StructuredJsonError } from "./json";
 
-export type AiErrorCode = "AI_NOT_CONFIGURED" | "AI_TIMEOUT" | "AI_UNAVAILABLE" | "AI_INVALID_RESPONSE";
+export type AiErrorCode = "AI_NOT_CONFIGURED" | "AI_TIMEOUT" | "AI_UNAVAILABLE" | "AI_INVALID_RESPONSE" | "AI_PROVIDER_ERROR";
 
 export class AiError extends Error {
   readonly code: AiErrorCode;
   readonly status: number;
+  readonly providerResponse?: unknown;
 
-  constructor(code: AiErrorCode, message: string, status: number) {
+  constructor(code: AiErrorCode, message: string, status: number, providerResponse?: unknown) {
     super(message);
     this.name = "AiError";
     this.code = code;
     this.status = status;
+    this.providerResponse = providerResponse;
   }
 }
 
@@ -24,6 +26,7 @@ type GenerateOptions = {
   userPrompt: string;
   temperature: number;
   maxTokens: number;
+  logResponse?: boolean;
 };
 
 function timeout<T>(promise: Promise<T>): Promise<T> {
@@ -41,6 +44,24 @@ function isTransient(error: unknown): boolean {
     return status === 408 || status === 409 || status === 429 || status >= 500;
   }
   return false;
+}
+
+function providerError(error: unknown): AiError {
+  if (error instanceof AiError) return error;
+  const value = typeof error === "object" && error !== null ? error as Record<string, unknown> : null;
+  const status = value && typeof value.status === "number" ? value.status : 502;
+  const response = value?.error ?? (error instanceof Error ? { message: error.message } : error);
+  const responseRecord = typeof response === "object" && response !== null ? response as Record<string, unknown> : null;
+  const nestedError = responseRecord && typeof responseRecord.error === "object" && responseRecord.error !== null
+    ? responseRecord.error as Record<string, unknown>
+    : null;
+  const message = typeof nestedError?.message === "string"
+    ? nestedError.message
+    : typeof responseRecord?.message === "string"
+      ? responseRecord.message
+      : error instanceof Error ? error.message : "The AI provider rejected the request.";
+  const code: AiErrorCode = status === 408 || status === 429 || status >= 500 ? "AI_UNAVAILABLE" : "AI_PROVIDER_ERROR";
+  return new AiError(code, message, status, response);
 }
 
 async function generateOnce(options: GenerateOptions, apiKey: string): Promise<string> {
@@ -64,7 +85,6 @@ async function generateOnce(options: GenerateOptions, apiKey: string): Promise<s
       max_tokens: options.maxTokens,
       system: `${options.systemPrompt}\n\nReturn only valid JSON without markdown fences.`,
       messages: [{ role: "user", content: options.userPrompt }],
-      temperature: options.temperature,
     });
     const block = response.content.find((item) => item.type === "text");
     return block?.type === "text" ? block.text : "";
@@ -85,20 +105,21 @@ export async function generateStructured(options: GenerateOptions): Promise<unkn
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= AI_TRANSIENT_RETRIES; attempt += 1) {
+    let content: string | undefined;
     try {
-      const content = await timeout(generateOnce(options, apiKey));
-      console.log(`[Raw AI Response from ${options.provider} (Attempt ${attempt + 1})]:\n${content}`);
+      content = await timeout(generateOnce(options, apiKey));
+      if (options.logResponse !== false && process.env.NODE_ENV !== "production") {
+        console.info(`[Raw AI Response from ${options.provider} (Attempt ${attempt + 1})]:\n${content}`);
+      }
       return parseStructuredJson(content);
     } catch (error) {
-      console.error(`Error during AI generation (attempt ${attempt + 1}):`, error);
+      if (process.env.NODE_ENV !== "production") console.error(`Error during AI generation (attempt ${attempt + 1}):`, error);
       lastError = error instanceof StructuredJsonError
-        ? new AiError("AI_INVALID_RESPONSE", "The AI provider returned malformed structured data.", 502)
-        : error;
+        ? new AiError("AI_INVALID_RESPONSE", "The AI provider returned malformed structured data.", 502, content)
+        : providerError(error);
       if (attempt === AI_TRANSIENT_RETRIES || !isTransient(error)) break;
     }
   }
 
-  if (lastError instanceof AiError) throw lastError;
-  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-  throw new AiError("AI_UNAVAILABLE", `The AI provider is temporarily unavailable: ${errorMsg}`, 503);
+  throw providerError(lastError);
 }

@@ -28,7 +28,7 @@ export const AI_PROVIDERS: Record<AiProvider, ProviderConfig> = {
   },
 };
 
-export const AI_REQUEST_TIMEOUT_MS = 30_000;
+export const AI_REQUEST_TIMEOUT_MS = 90_000;
 export const AI_TRANSIENT_RETRIES = 1;
 
 export function getProviderApiKey(provider: AiProvider): string | undefined {

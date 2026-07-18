@@ -41,6 +41,37 @@ interface ApplicationPackageResult {
   interviewTalkingPoints: string[];
 }
 
+interface ModelComparisonResult {
+  reviews: Array<{
+    provider: 'gemini' | 'openai' | 'anthropic'; score: number;
+    recommendation: 'Apply' | 'Apply with Reservations' | 'Do Not Apply';
+    matchingSkills: string[]; missingSkills: string[]; criticalGaps: string[];
+    summary: string; latencyMs: number;
+  }>;
+  failures: Array<{ provider: string; error: string; providerResponse?: unknown }>;
+  consensus: {
+    averageScore: number; scoreSpread: number; recommendationAgreement: boolean;
+    consensusRecommendation: 'Apply' | 'Apply with Reservations' | 'Do Not Apply' | 'Mixed';
+    sharedMatchingSkills: string[]; sharedMissingSkills: string[];
+  };
+  providerNames: Record<string, string>;
+}
+
+function inputFingerprint(resume: string, jobDescription: string): string {
+  let hash = 2166136261;
+  const value = `${resume}\u0000${jobDescription}`;
+  for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  return `${value.length}:${hash >>> 0}`;
+}
+
+function debugPayload(value: unknown): string {
+  try {
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 export default function JobChecker() {
   const [resumeMode, setResumeMode] = useState<'default' | 'paste' | 'upload'>('default');
   const [resumeText, setResumeText] = useState(DEFAULT_RESUME);
@@ -54,8 +85,9 @@ export default function JobChecker() {
   const [importedJobCompany, setImportedJobCompany] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorResponse, setErrorResponse] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips' | 'applykit'>('verdict');
+  const [activeTab, setActiveTab] = useState<'verdict' | 'evidence' | 'proscons' | 'skills' | 'tips' | 'applykit' | 'models'>('verdict');
   const [provider, setProvider] = useState("gemini");
   const [availableModels, setAvailableModels] = useState<{id: string, name: string, available: boolean}[]>([]);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<string[]>([]);
@@ -65,6 +97,13 @@ export default function JobChecker() {
   const [packageLength, setPackageLength] = useState<'concise' | 'standard' | 'detailed'>('standard');
   const [isGeneratingPackage, setIsGeneratingPackage] = useState(false);
   const [packageError, setPackageError] = useState("");
+  const [packageErrorResponse, setPackageErrorResponse] = useState("");
+  const [comparisonProviders, setComparisonProviders] = useState<string[]>([]);
+  const [modelComparison, setModelComparison] = useState<ModelComparisonResult | null>(null);
+  const [isComparingModels, setIsComparingModels] = useState(false);
+  const [comparisonError, setComparisonError] = useState("");
+  const [comparisonErrorResponse, setComparisonErrorResponse] = useState("");
+  const [analysisFingerprint, setAnalysisFingerprint] = useState("");
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -72,6 +111,7 @@ export default function JobChecker() {
         const response = await fetch(`/api/models`);
         const data = await response.json();
         setAvailableModels(data);
+        setComparisonProviders(data.filter((model: { available: boolean }) => model.available).slice(0, 2).map((model: { id: string }) => model.id));
       } catch (err) {
         console.error("Failed to fetch models:", err);
       }
@@ -82,6 +122,7 @@ export default function JobChecker() {
   const handleResumeModeChange = (mode: 'default' | 'paste' | 'upload') => {
     setResumeMode(mode);
     setError("");
+    setErrorResponse("");
     if (mode === 'default') {
       setResumeText(DEFAULT_RESUME);
     } else if (mode === 'paste') {
@@ -180,6 +221,8 @@ export default function JobChecker() {
     setCopiedSuggestion("");
     setApplicationPackage(null);
     setPackageError("");
+    setModelComparison(null);
+    setComparisonError("");
 
     try {
       const response = await fetch('/api/check-job', {
@@ -198,11 +241,15 @@ export default function JobChecker() {
       console.log('Check Job response:', data);
 
       if (!response.ok) {
+        const fullResponse = debugPayload(data.providerResponse ?? data);
+        setErrorResponse(fullResponse);
+        console.error('Full Check Job AI error response:', data.providerResponse ?? data);
         throw new Error(data.error || "Failed to analyze the job description");
       }
 
       const analysis = data as AnalysisResult;
       setResult(analysis);
+      setAnalysisFingerprint(inputFingerprint(finalResume, jobDescription));
       const firstLine = jobDescription.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "Untitled role";
       const resumeVersion = resumeMode === 'default' ? 'Default resume' : resumeMode === 'upload' ? `Uploaded: ${uploadedFileName || 'resume file'}` : 'Pasted resume';
       upsertJobHistory(window.localStorage, {
@@ -246,6 +293,7 @@ export default function JobChecker() {
     if (!result) return;
     setIsGeneratingPackage(true);
     setPackageError("");
+    setPackageErrorResponse("");
     setApplicationPackage(null);
     try {
       const response = await fetch('/api/application-package', {
@@ -262,13 +310,55 @@ export default function JobChecker() {
       });
       const data = await response.json();
       console.log('Application Package response:', data);
-      if (!response.ok) throw new Error(data.error || 'Could not generate the application package');
+      if (!response.ok) {
+        setPackageErrorResponse(debugPayload(data.providerResponse ?? data));
+        console.error('Full Application Package AI error response:', data.providerResponse ?? data);
+        throw new Error(data.error || 'Could not generate the application package');
+      }
       setApplicationPackage(data);
     } catch (error: unknown) {
       console.error('Application Package error:', error);
       setPackageError(error instanceof Error ? error.message : 'Could not generate the application package.');
     } finally {
       setIsGeneratingPackage(false);
+    }
+  };
+
+  const toggleComparisonProvider = (id: string) => {
+    setComparisonProviders((current) => current.includes(id) ? current.filter((providerId) => providerId !== id) : current.length < 3 ? [...current, id] : current);
+    setModelComparison(null);
+    setComparisonError("");
+    setComparisonErrorResponse("");
+  };
+
+  const handleCompareModels = async () => {
+    if (!result || comparisonProviders.length < 2) return;
+    const currentResume = resumeMode === 'default' ? DEFAULT_RESUME : resumeText;
+    if (inputFingerprint(currentResume, jobDescription) !== analysisFingerprint) {
+      setComparisonError("Resume or job inputs changed after the analysis. Run Analyze Match again before comparing models.");
+      return;
+    }
+    setIsComparingModels(true);
+    setComparisonError("");
+    setComparisonErrorResponse("");
+    setModelComparison(null);
+    try {
+      const response = await fetch('/api/compare-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume: currentResume, job_description: jobDescription, providers: comparisonProviders }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setComparisonErrorResponse(debugPayload(data.providerResponse ?? data));
+        console.error('Full Multi-model AI error response:', data.providerResponse ?? data);
+        throw new Error(data.error || 'Could not compare the selected models');
+      }
+      setModelComparison(data);
+    } catch (error: unknown) {
+      setComparisonError(error instanceof Error ? error.message : 'Could not compare the selected models.');
+    } finally {
+      setIsComparingModels(false);
     }
   };
 
@@ -575,9 +665,15 @@ export default function JobChecker() {
               <div className="p-6">
                 <div className="text-rose-500 p-4 border border-rose-200 bg-rose-50 rounded-lg flex items-start gap-3">
                   <span className="text-xl">⚠️</span>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h4 className="font-semibold text-sm">Error Loading Analysis</h4>
                     <p className="text-xs mt-1 leading-relaxed">{error}</p>
+                    {errorResponse && (
+                      <details className="mt-3 text-slate-700">
+                        <summary className="text-xs font-semibold cursor-pointer">Show full AI response (sensitive)</summary>
+                        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-rose-200 bg-white p-3 text-[11px] leading-relaxed">{errorResponse}</pre>
+                      </details>
+                    )}
                   </div>
                 </div>
               </div>
@@ -666,6 +762,14 @@ export default function JobChecker() {
                     }`}
                   >
                     Apply Kit
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('models')}
+                    className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all border-b-2 outline-none cursor-pointer ${
+                      activeTab === 'models' ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    Model Review
                   </button>
                 </div>
 
@@ -928,7 +1032,7 @@ export default function JobChecker() {
                         </button>
                       </div>
 
-                      {packageError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{packageError}</div>}
+                      {packageError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><p>{packageError}</p>{packageErrorResponse && <details className="mt-2 text-slate-700"><summary className="font-semibold cursor-pointer">Show full AI response (sensitive)</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px]">{packageErrorResponse}</pre></details>}</div>}
 
                       {applicationPackage && (
                         <div className="flex flex-col gap-3">
@@ -957,6 +1061,69 @@ export default function JobChecker() {
                               {applicationPackage.interviewTalkingPoints.map((point, idx) => <li key={idx} className="text-sm text-slate-700 leading-relaxed flex gap-2"><span className="text-blue-500">•</span><span>{point}</span></li>)}
                             </ul>
                           </article>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'models' && (
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">Multi-model Review</h4>
+                        <p className="text-xs text-gray-500 mt-1">Compare independent compact reviews without replacing your primary analysis.</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                        <span className="block text-xs font-semibold text-slate-600 mb-2">Select 2-3 configured providers</span>
+                        <div className="flex flex-wrap gap-2">
+                          {availableModels.map((model) => {
+                            const selected = comparisonProviders.includes(model.id);
+                            return (
+                              <button key={model.id} type="button" disabled={!model.available || (!selected && comparisonProviders.length >= 3)} onClick={() => toggleComparisonProvider(model.id)} className={`px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed ${selected ? "bg-blue-50 border-blue-300 text-blue-700" : "bg-white border-slate-200 text-slate-600"}`}>
+                                {selected ? '✓ ' : ''}{model.name}{!model.available ? ' (Unavailable)' : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-amber-700 mt-3">This runs {comparisonProviders.length || 0} additional paid AI requests in parallel. Provider billing applies; exact cost is not available.</p>
+                        <button type="button" onClick={() => void handleCompareModels()} disabled={isComparingModels || comparisonProviders.length < 2} className="mt-3 w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                          {isComparingModels ? 'Comparing models...' : modelComparison ? 'Run Comparison Again' : 'Compare Selected Models'}
+                        </button>
+                        {availableModels.filter((model) => model.available).length < 2 && <p className="mt-2 text-xs text-rose-600">Configure at least two provider API keys to use this feature.</p>}
+                      </div>
+
+                      {comparisonError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><p>{comparisonError}</p>{comparisonErrorResponse && <details className="mt-2 text-slate-700"><summary className="font-semibold cursor-pointer">Show full AI response (sensitive)</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px]">{comparisonErrorResponse}</pre></details>}</div>}
+
+                      {modelComparison && (
+                        <div className="flex flex-col gap-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="rounded-lg bg-blue-50 p-3 text-center"><strong className="block text-xl text-blue-700">{modelComparison.consensus.averageScore}%</strong><span className="text-[10px] text-slate-500">simple average</span></div>
+                            <div className="rounded-lg bg-violet-50 p-3 text-center"><strong className="block text-xl text-violet-700">{modelComparison.consensus.scoreSpread}</strong><span className="text-[10px] text-slate-500">point spread</span></div>
+                            <div className="rounded-lg bg-slate-100 p-3 text-center"><strong className="block text-sm text-slate-700 mt-1">{modelComparison.consensus.consensusRecommendation}</strong><span className="text-[10px] text-slate-500">consensus</span></div>
+                            <div className={`rounded-lg p-3 text-center ${modelComparison.consensus.recommendationAgreement ? "bg-emerald-50" : "bg-amber-50"}`}><strong className={`block text-sm mt-1 ${modelComparison.consensus.recommendationAgreement ? "text-emerald-700" : "text-amber-700"}`}>{modelComparison.consensus.recommendationAgreement ? 'Agreed' : 'Disagreed'}</strong><span className="text-[10px] text-slate-500">recommendation</span></div>
+                          </div>
+
+                          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+                            {modelComparison.reviews.map((review) => (
+                              <article key={review.provider} className="rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="flex items-start justify-between gap-3"><div><h5 className="text-sm font-bold text-slate-800">{modelComparison.providerNames[review.provider] || review.provider}</h5><p className="text-[10px] text-slate-400 mt-0.5">{(review.latencyMs / 1000).toFixed(1)}s</p></div><span className="text-2xl font-extrabold text-blue-600">{review.score}%</span></div>
+                                <p className="text-xs font-semibold text-slate-600 mt-3">{review.recommendation}</p>
+                                <p className="text-xs text-slate-500 leading-relaxed mt-2">{review.summary}</p>
+                                <div className="mt-3"><span className="text-[10px] font-bold uppercase text-emerald-600">Matches</span><p className="text-xs text-slate-600 mt-1">{review.matchingSkills.join(', ') || 'None identified'}</p></div>
+                                <div className="mt-3"><span className="text-[10px] font-bold uppercase text-rose-600">Critical gaps</span><p className="text-xs text-slate-600 mt-1">{review.criticalGaps.join(', ') || 'None identified'}</p></div>
+                              </article>
+                            ))}
+                          </div>
+
+                          {(modelComparison.consensus.sharedMatchingSkills.length > 0 || modelComparison.consensus.sharedMissingSkills.length > 0) && (
+                            <section className="rounded-xl border border-slate-200 bg-white p-4">
+                              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Shared findings across successful models</h5>
+                              {modelComparison.consensus.sharedMatchingSkills.length > 0 && <p className="mt-2 text-xs text-emerald-700"><span className="font-semibold">Matches:</span> {modelComparison.consensus.sharedMatchingSkills.join(', ')}</p>}
+                              {modelComparison.consensus.sharedMissingSkills.length > 0 && <p className="mt-2 text-xs text-rose-700"><span className="font-semibold">Missing:</span> {modelComparison.consensus.sharedMissingSkills.join(', ')}</p>}
+                            </section>
+                          )}
+
+                          {modelComparison.failures.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h5 className="text-xs font-bold text-amber-800 uppercase">Partial failures</h5>{modelComparison.failures.map((failure) => <div key={failure.provider} className="mt-2"><p className="text-xs text-amber-700"><span className="font-semibold">{modelComparison.providerNames[failure.provider] || failure.provider}:</span> {failure.error}</p>{failure.providerResponse !== undefined && <details className="mt-1 text-slate-700"><summary className="text-xs font-semibold cursor-pointer">Show full AI response (sensitive)</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px]">{debugPayload(failure.providerResponse)}</pre></details>}</div>)}</div>}
                         </div>
                       )}
                     </div>

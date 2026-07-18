@@ -38,6 +38,26 @@ export type ApplicationPackage = {
   interviewTalkingPoints: string[];
 };
 
+export type ModelReview = {
+  provider: "gemini" | "openai" | "anthropic";
+  score: number;
+  recommendation: JobMatchRecommendation;
+  matchingSkills: string[];
+  missingSkills: string[];
+  criticalGaps: string[];
+  summary: string;
+  latencyMs: number;
+};
+
+export type ModelReviewConsensus = {
+  averageScore: number;
+  scoreSpread: number;
+  recommendationAgreement: boolean;
+  consensusRecommendation: JobMatchRecommendation | "Mixed";
+  sharedMatchingSkills: string[];
+  sharedMissingSkills: string[];
+};
+
 export type JobMatchResult = {
   score: number;
   recommendation: JobMatchRecommendation;
@@ -132,6 +152,54 @@ export function validateApplicationPackage(value: unknown): ApplicationPackage {
     connectionNote: string(result.connectionNote, "connectionNote"),
     whyThisCompany: string(result.whyThisCompany, "whyThisCompany"),
     interviewTalkingPoints: talkingPoints,
+  };
+}
+
+export function validateModelReview(value: unknown, provider: ModelReview["provider"], latencyMs: number): ModelReview {
+  const result = object(value, "model review");
+  exactKeys(result, ["score", "recommendation", "matchingSkills", "missingSkills", "criticalGaps", "summary"], "model review");
+  const recommendation = string(result.recommendation, "recommendation");
+  if (recommendation !== "Apply" && recommendation !== "Apply with Reservations" && recommendation !== "Do Not Apply") {
+    throw new SchemaValidationError("recommendation is invalid");
+  }
+  return {
+    provider,
+    score: score(result.score),
+    recommendation,
+    matchingSkills: stringArray(result.matchingSkills, "matchingSkills"),
+    missingSkills: stringArray(result.missingSkills, "missingSkills"),
+    criticalGaps: stringArray(result.criticalGaps, "criticalGaps"),
+    summary: string(result.summary, "summary"),
+    latencyMs: Math.max(0, Math.round(latencyMs)),
+  };
+}
+
+function sharedStrings(collections: string[][]): string[] {
+  if (!collections.length) return [];
+  const first = collections[0];
+  return first.filter((item, index) => {
+    const normalized = item.toLocaleLowerCase();
+    return first.findIndex((candidate) => candidate.toLocaleLowerCase() === normalized) === index
+      && collections.slice(1).every((collection) => collection.some((candidate) => candidate.toLocaleLowerCase() === normalized));
+  });
+}
+
+export function aggregateModelReviews(reviews: ModelReview[]): ModelReviewConsensus {
+  if (!reviews.length) throw new SchemaValidationError("At least one model review is required");
+  const scores = reviews.map((review) => review.score);
+  const recommendations = reviews.map((review) => review.recommendation);
+  const recommendationAgreement = recommendations.every((recommendation) => recommendation === recommendations[0]);
+  const counts = new Map<JobMatchRecommendation, number>();
+  recommendations.forEach((recommendation) => counts.set(recommendation, (counts.get(recommendation) ?? 0) + 1));
+  const ordered = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const consensusRecommendation = recommendationAgreement || (ordered[0]?.[1] ?? 0) > reviews.length / 2 ? ordered[0][0] : "Mixed";
+  return {
+    averageScore: Math.round(scores.reduce((total, value) => total + value, 0) / scores.length),
+    scoreSpread: Math.max(...scores) - Math.min(...scores),
+    recommendationAgreement,
+    consensusRecommendation,
+    sharedMatchingSkills: sharedStrings(reviews.map((review) => review.matchingSkills)),
+    sharedMissingSkills: sharedStrings(reviews.map((review) => review.missingSkills)),
   };
 }
 

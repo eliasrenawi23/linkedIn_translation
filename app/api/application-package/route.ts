@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiRouteError } from "@/app/lib/ai/http";
+import { aiRouteError, validateAiOutput } from "@/app/lib/ai/http";
 import { generateStructured } from "@/app/lib/ai/provider";
 import { SchemaValidationError, validateApplicationPackage, validateRequirementEvidence } from "@/app/lib/ai/schemas";
 import { InputError, MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS, readProvider, readRequiredString } from "@/app/lib/input-validation";
@@ -71,7 +71,7 @@ ${jobDescription}
       maxTokens: 4096,
     });
 
-    const applicationPackage = validateApplicationPackage(result);
+    const applicationPackage = validateAiOutput(result, validateApplicationPackage);
     if (applicationPackage.connectionNote.length > 280) {
       throw new SchemaValidationError("connectionNote must not exceed 280 characters");
     }
