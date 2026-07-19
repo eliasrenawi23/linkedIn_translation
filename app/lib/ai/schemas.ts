@@ -79,6 +79,15 @@ export type CandidateEvaluation = {
   githubEnriched: boolean;
 };
 
+export type StructuredCandidateProfile = {
+  summary: string;
+  profiles: Array<{ network: string; url: string; username: string }>;
+  work: Array<{ company: string; position: string; startDate: string; endDate: string; summary: string; highlights: string[] }>;
+  skills: Array<{ category: string; keywords: string[] }>;
+  projects: Array<{ name: string; description: string; url: string; technologies: string[] }>;
+  awards: Array<{ title: string; date: string; awarder: string }>;
+};
+
 export type JobMatchResult = {
   score: number;
   recommendation: JobMatchRecommendation;
@@ -191,6 +200,47 @@ export function validateCandidateEvaluation(value: unknown): CandidateEvaluation
     areasForImprovement,
     overallScore: Math.max(-20, Math.min(120, Math.round((categoryTotal + bonusPoints.total - parsedDeductions.total) * 10) / 10)),
     githubEnriched: false,
+  };
+}
+
+export function validateStructuredCandidateProfile(value: unknown): StructuredCandidateProfile {
+  const result = object(value, "structured candidate profile");
+  exactKeys(result, ["summary", "profiles", "work", "skills", "projects", "awards"], "structured candidate profile");
+  const array = (input: unknown, path: string, max: number): unknown[] => {
+    if (!Array.isArray(input) || input.length > max) throw new SchemaValidationError(`${path} must be an array with at most ${max} items`);
+    return input;
+  };
+  const optionalString = (input: unknown, path: string): string => {
+    if (input === null || input === undefined || input === "") return "Not provided";
+    return string(input, path);
+  };
+  return {
+    summary: optionalString(result.summary, "summary"),
+    profiles: array(result.profiles, "profiles", 12).map((entry, index) => {
+      const path = `profiles[${index}]`; const item = object(entry, path);
+      exactKeys(item, ["network", "url", "username"], path);
+      return { network: optionalString(item.network, `${path}.network`), url: optionalString(item.url, `${path}.url`), username: optionalString(item.username, `${path}.username`) };
+    }),
+    work: array(result.work, "work", 20).map((entry, index) => {
+      const path = `work[${index}]`; const item = object(entry, path);
+      exactKeys(item, ["company", "position", "startDate", "endDate", "summary", "highlights"], path);
+      return { company: optionalString(item.company, `${path}.company`), position: optionalString(item.position, `${path}.position`), startDate: optionalString(item.startDate, `${path}.startDate`), endDate: optionalString(item.endDate, `${path}.endDate`), summary: optionalString(item.summary, `${path}.summary`), highlights: stringArray(item.highlights, `${path}.highlights`, 12) };
+    }),
+    skills: array(result.skills, "skills", 20).map((entry, index) => {
+      const path = `skills[${index}]`; const item = object(entry, path);
+      exactKeys(item, ["category", "keywords"], path);
+      return { category: optionalString(item.category, `${path}.category`), keywords: stringArray(item.keywords, `${path}.keywords`, 30) };
+    }),
+    projects: array(result.projects, "projects", 30).map((entry, index) => {
+      const path = `projects[${index}]`; const item = object(entry, path);
+      exactKeys(item, ["name", "description", "url", "technologies"], path);
+      return { name: optionalString(item.name, `${path}.name`), description: optionalString(item.description, `${path}.description`), url: optionalString(item.url, `${path}.url`), technologies: stringArray(item.technologies, `${path}.technologies`, 20) };
+    }),
+    awards: array(result.awards, "awards", 15).map((entry, index) => {
+      const path = `awards[${index}]`; const item = object(entry, path);
+      exactKeys(item, ["title", "date", "awarder"], path);
+      return { title: optionalString(item.title, `${path}.title`), date: optionalString(item.date, `${path}.date`), awarder: optionalString(item.awarder, `${path}.awarder`) };
+    }),
   };
 }
 

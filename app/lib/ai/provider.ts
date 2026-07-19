@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { AI_PROVIDERS, AI_REQUEST_TIMEOUT_MS, AI_TRANSIENT_RETRIES, getProviderApiKey, type AiProvider } from "./config";
 import { parseStructuredJson, StructuredJsonError } from "./json";
+import { addCurrentDateContext } from "./date-context";
 
 export type AiErrorCode = "AI_NOT_CONFIGURED" | "AI_TIMEOUT" | "AI_UNAVAILABLE" | "AI_INVALID_RESPONSE" | "AI_PROVIDER_ERROR";
 
@@ -94,7 +95,11 @@ async function generateOnce(options: GenerateOptions, apiKey: string): Promise<s
   const model = client.getGenerativeModel({ model: config.model, systemInstruction: options.systemPrompt });
   const response = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: options.userPrompt }] }],
-    generationConfig: { temperature: options.temperature, maxOutputTokens: options.maxTokens, responseMimeType: "application/json" },
+    generationConfig: {
+      temperature: options.temperature,
+      maxOutputTokens: options.provider === "gemini" ? 8192 : options.maxTokens,
+      responseMimeType: "application/json"
+    },
   });
   return response.response.text();
 }
@@ -103,11 +108,12 @@ export async function generateStructured(options: GenerateOptions): Promise<unkn
   const apiKey = getProviderApiKey(options.provider);
   if (!apiKey) throw new AiError("AI_NOT_CONFIGURED", `${AI_PROVIDERS[options.provider].name} is not configured.`, 503);
 
+  const datedOptions: GenerateOptions = { ...options, systemPrompt: addCurrentDateContext(options.systemPrompt) };
   let lastError: unknown;
   for (let attempt = 0; attempt <= AI_TRANSIENT_RETRIES; attempt += 1) {
     let content: string | undefined;
     try {
-      content = await timeout(generateOnce(options, apiKey));
+      content = await timeout(generateOnce(datedOptions, apiKey));
       if (options.logResponse !== false && process.env.NODE_ENV !== "production") {
         console.info(`[Raw AI Response from ${options.provider} (Attempt ${attempt + 1})]:\n${content}`);
       }

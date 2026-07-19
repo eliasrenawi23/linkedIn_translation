@@ -154,15 +154,7 @@ export async function POST(req: Request) {
     const job_description = readRequiredString((body as { job_description?: unknown })?.job_description, "Job description", MAX_JOB_DESCRIPTION_CHARS);
     const provider = readProvider((body as { provider?: unknown })?.provider);
 
-    const today = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-
     const prompt = `
-Today's date is ${today}. Use this date to accurately calculate years of experience from dates listed in the resume (e.g., from April 2023 to present).
-
 Candidate's Resume:
 \"\"\"
 ${resume}

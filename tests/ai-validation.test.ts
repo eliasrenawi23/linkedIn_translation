@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
-import { SchemaValidationError, aggregateModelReviews, validateApplicationPackage, validateCandidateEvaluation, validateJobMatchResult, validateModelReview, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+import { addCurrentDateContext, currentDateContext, experienceDurationSummary } from "../app/lib/ai/date-context.ts";
+import { SchemaValidationError, aggregateModelReviews, validateApplicationPackage, validateCandidateEvaluation, validateJobMatchResult, validateModelReview, validateStructuredCandidateProfile, validateTranslationResult } from "../app/lib/ai/schemas.ts";
 import { JOB_HISTORY_STORAGE_KEY, createHistoryExport, loadJobHistory, parseHistoryImport, upsertJobHistory } from "../app/lib/job-history.ts";
 
 test("parseStructuredJson accepts plain and fenced JSON", () => {
   assert.deepEqual(parseStructuredJson('{"score": 10}'), { score: 10 });
   assert.deepEqual(parseStructuredJson('```json\n{"score": 20}\n```'), { score: 20 });
+});
+
+test("date context gives every prompt an exact date and conservative duration rules", () => {
+  const now = new Date("2026-07-19T09:30:00.000Z");
+  const context = currentDateContext(now);
+  assert.match(context, /Today's date is 2026-07-19/);
+  assert.match(context, /Present.*2026-07-19/);
+  assert.match(context, /Do not double-count overlapping/);
+  assert.match(addCurrentDateContext("Evaluate evidence", now), /^Evaluate evidence[\s\S]*2026-07-19/);
+});
+
+test("experience duration uses today's date for ongoing roles", () => {
+  const summary = experienceDurationSummary([{ position: "Full-Stack Engineer", startDate: "April 2023", endDate: "Present" }], new Date("2026-07-19T09:30:00.000Z"));
+  assert.match(summary[0], /3 years 3 months/);
+  assert.match(summary[0], /2026-07-19/);
 });
 
 test("parseStructuredJson extracts JSON surrounded by provider prose", () => {
@@ -234,4 +250,20 @@ test("candidate evaluation rejects scores above the source rubric limits", () =>
     keyStrengths: ["Strength"],
     areasForImprovement: ["Improvement"],
   }), SchemaValidationError);
+});
+
+test("structured candidate profile accepts normalized technical evidence", () => {
+  const profile = validateStructuredCandidateProfile({
+    summary: "Backend engineer",
+    profiles: [{ network: "GitHub", url: "https://github.com/example", username: "example" }],
+    work: [{ company: "Example", position: "Engineer", startDate: "2024-01", endDate: "Present", summary: "Built APIs", highlights: ["Reduced latency"] }],
+    skills: [{ category: "Languages", keywords: ["TypeScript"] }],
+    projects: [{ name: "Tool", description: "Developer tool", url: "https://example.com", technologies: ["Node.js"] }],
+    awards: [],
+  });
+  assert.equal(profile.projects[0].name, "Tool");
+});
+
+test("structured candidate profile rejects invented fields", () => {
+  assert.throws(() => validateStructuredCandidateProfile({ summary: "Engineer", profiles: [], work: [], skills: [], projects: [], awards: [], educationRank: 1 }), SchemaValidationError);
 });
