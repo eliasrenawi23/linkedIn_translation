@@ -16,6 +16,14 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Candidate Score integration
+
+The `/candidate-score` page adapts the explainable technical-portfolio rubric from HackerRank's MIT-licensed [Hiring Agent](https://github.com/interviewstreet/hiring-agent). It evaluates resume evidence across open source, self-directed projects, production experience, and technical skills. An optional public GitHub username or profile URL enriches the evaluation with repository metadata.
+
+The integration uses the existing Next.js document parser and configured AI providers; it does not require the original Python runtime. Set `GITHUB_TOKEN` on the server to increase GitHub API limits. Never expose this token through a `NEXT_PUBLIC_` variable.
+
+This output is intended for portfolio development, not automated hiring decisions. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for attribution.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

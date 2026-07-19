@@ -9,6 +9,7 @@ export default function Navbar() {
     { href: "/", icon: "⌁", label: "Translator" },
     { href: "/job-checker", icon: "◎", label: "Job Match" },
     { href: "/model-review", icon: "◈", label: "Reviews" },
+    { href: "/candidate-score", icon: "⌁", label: "Score" },
     { href: "/job-history", icon: "◷", label: "History" },
   ];
 
@@ -24,7 +25,7 @@ export default function Navbar() {
             <h1 className="truncate text-base font-bold tracking-tight text-slate-800 sm:text-lg">Career Suite</h1>
           </div>
         </div>
-        <nav aria-label="Primary navigation" className="grid w-full grid-cols-4 gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 sm:w-auto">
+        <nav aria-label="Primary navigation" className="grid w-full grid-cols-5 gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 sm:w-auto">
           {links.map((link) => {
             const active = pathname === link.href;
             return (
@@ -32,13 +33,13 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-all sm:px-4 sm:text-sm ${
+                className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-bold transition-all sm:px-3 sm:text-sm ${
                   active
                     ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200/70"
                     : "text-slate-500 hover:bg-white/60 hover:text-slate-800"
                 }`}
               >
-                <span aria-hidden="true" className="text-base leading-none">{link.icon}</span>
+                <span aria-hidden="true" className="hidden text-base leading-none min-[380px]:inline">{link.icon}</span>
                 <span className="truncate">{link.label}</span>
               </Link>
             );

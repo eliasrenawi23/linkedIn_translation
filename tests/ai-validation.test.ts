@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStructuredJson, StructuredJsonError } from "../app/lib/ai/json.ts";
-import { SchemaValidationError, aggregateModelReviews, validateApplicationPackage, validateJobMatchResult, validateModelReview, validateTranslationResult } from "../app/lib/ai/schemas.ts";
+import { SchemaValidationError, aggregateModelReviews, validateApplicationPackage, validateCandidateEvaluation, validateJobMatchResult, validateModelReview, validateTranslationResult } from "../app/lib/ai/schemas.ts";
 import { JOB_HISTORY_STORAGE_KEY, createHistoryExport, loadJobHistory, parseHistoryImport, upsertJobHistory } from "../app/lib/job-history.ts";
 
 test("parseStructuredJson accepts plain and fenced JSON", () => {
@@ -202,4 +202,36 @@ test("model consensus reports unanimous recommendation", () => {
   const consensus = aggregateModelReviews([geminiReview, { ...openAiReview, recommendation: "Apply", score: 78 }]);
   assert.equal(consensus.recommendationAgreement, true);
   assert.equal(consensus.consensusRecommendation, "Apply");
+});
+
+test("candidate evaluation validates category limits and calculates the overall score", () => {
+  const result = validateCandidateEvaluation({
+    scores: {
+      openSource: { score: 20, max: 35, evidence: "Verified external contributions" },
+      selfProjects: { score: 24, max: 30, evidence: "Two complex deployed projects" },
+      production: { score: 18, max: 25, evidence: "Production engineering experience" },
+      technicalSkills: { score: 8, max: 10, evidence: "Evidenced technical breadth" },
+    },
+    bonusPoints: { total: 4, breakdown: "Technical writing and adoption" },
+    deductions: { total: 2, reasons: "One project lacks a link" },
+    keyStrengths: ["Strong project execution"],
+    areasForImprovement: ["Document external contributions"],
+  });
+  assert.equal(result.overallScore, 72);
+  assert.equal(result.githubEnriched, false);
+});
+
+test("candidate evaluation rejects scores above the source rubric limits", () => {
+  assert.throws(() => validateCandidateEvaluation({
+    scores: {
+      openSource: { score: 36, max: 35, evidence: "Invalid" },
+      selfProjects: { score: 20, max: 30, evidence: "Evidence" },
+      production: { score: 20, max: 25, evidence: "Evidence" },
+      technicalSkills: { score: 8, max: 10, evidence: "Evidence" },
+    },
+    bonusPoints: { total: 0, breakdown: "None" },
+    deductions: { total: 0, reasons: "None" },
+    keyStrengths: ["Strength"],
+    areasForImprovement: ["Improvement"],
+  }), SchemaValidationError);
 });

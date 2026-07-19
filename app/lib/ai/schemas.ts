@@ -58,6 +58,27 @@ export type ModelReviewConsensus = {
   sharedMissingSkills: string[];
 };
 
+export type CandidateCategoryScore = {
+  score: number;
+  max: number;
+  evidence: string;
+};
+
+export type CandidateEvaluation = {
+  scores: {
+    openSource: CandidateCategoryScore;
+    selfProjects: CandidateCategoryScore;
+    production: CandidateCategoryScore;
+    technicalSkills: CandidateCategoryScore;
+  };
+  bonusPoints: { total: number; breakdown: string };
+  deductions: { total: number; reasons: string };
+  keyStrengths: string[];
+  areasForImprovement: string[];
+  overallScore: number;
+  githubEnriched: boolean;
+};
+
 export type JobMatchResult = {
   score: number;
   recommendation: JobMatchRecommendation;
@@ -112,6 +133,65 @@ function score(value: unknown): number {
 function stringArray(value: unknown, path: string, maxItems = 12): string[] {
   if (!Array.isArray(value) || value.length > maxItems) throw new SchemaValidationError(`${path} must be a string array with at most ${maxItems} items`);
   return value.map((item, index) => string(item, `${path}[${index}]`));
+}
+
+function boundedNumber(value: unknown, path: string, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new SchemaValidationError(`${path} must be a number from ${minimum} to ${maximum}`);
+  }
+  return Math.round(value * 10) / 10;
+}
+
+function candidateCategory(value: unknown, path: string, expectedMax: number): CandidateCategoryScore {
+  const category = object(value, path);
+  exactKeys(category, ["score", "max", "evidence"], path);
+  if (category.max !== expectedMax) throw new SchemaValidationError(`${path}.max must be ${expectedMax}`);
+  return {
+    score: boundedNumber(category.score, `${path}.score`, 0, expectedMax),
+    max: expectedMax,
+    evidence: string(category.evidence, `${path}.evidence`),
+  };
+}
+
+export function validateCandidateEvaluation(value: unknown): CandidateEvaluation {
+  const result = object(value, "candidate evaluation");
+  exactKeys(result, ["scores", "bonusPoints", "deductions", "keyStrengths", "areasForImprovement"], "candidate evaluation");
+  const scores = object(result.scores, "scores");
+  
+  // Sanitize scores by filtering out any unexpected keys that the LLM may have generated (like technicalSkillsMax)
+  const expectedScoreKeys = ["openSource", "selfProjects", "production", "technicalSkills"];
+  for (const key of Object.keys(scores)) {
+    if (!expectedScoreKeys.includes(key)) {
+      delete scores[key];
+    }
+  }
+
+  exactKeys(scores, expectedScoreKeys, "scores");
+  const bonus = object(result.bonusPoints, "bonusPoints");
+  exactKeys(bonus, ["total", "breakdown"], "bonusPoints");
+  const deductions = object(result.deductions, "deductions");
+  exactKeys(deductions, ["total", "reasons"], "deductions");
+  const parsedScores = {
+    openSource: candidateCategory(scores.openSource, "scores.openSource", 35),
+    selfProjects: candidateCategory(scores.selfProjects, "scores.selfProjects", 30),
+    production: candidateCategory(scores.production, "scores.production", 25),
+    technicalSkills: candidateCategory(scores.technicalSkills, "scores.technicalSkills", 10),
+  };
+  const bonusPoints = { total: boundedNumber(bonus.total, "bonusPoints.total", 0, 20), breakdown: string(bonus.breakdown, "bonusPoints.breakdown") };
+  const parsedDeductions = { total: boundedNumber(deductions.total, "deductions.total", 0, 50), reasons: string(deductions.reasons, "deductions.reasons") };
+  const keyStrengths = stringArray(result.keyStrengths, "keyStrengths", 5);
+  const areasForImprovement = stringArray(result.areasForImprovement, "areasForImprovement", 5);
+  if (!keyStrengths.length || !areasForImprovement.length) throw new SchemaValidationError("strengths and improvement areas cannot be empty");
+  const categoryTotal = Object.values(parsedScores).reduce((total, category) => total + category.score, 0);
+  return {
+    scores: parsedScores,
+    bonusPoints,
+    deductions: parsedDeductions,
+    keyStrengths,
+    areasForImprovement,
+    overallScore: Math.max(-20, Math.min(120, Math.round((categoryTotal + bonusPoints.total - parsedDeductions.total) * 10) / 10)),
+    githubEnriched: false,
+  };
 }
 
 export function validateRequirementEvidence(value: unknown): RequirementEvidence[] {
